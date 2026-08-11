@@ -1,4 +1,4 @@
-import { db } from './db.js';
+import { db, getDeletedItems, markItemDeleted, cleanupDuplicates } from './db.js';
 
 const GIST_FILENAME = 'btrips_sync_database.json';
 const LS_GIST_ID    = 'github_gist_id';
@@ -9,17 +9,20 @@ const LS_DICT_TIME  = 'dictionaries_updated_at';
 // ─────────────────────────────────────────────────────────────────
 
 export async function exportLocalDbToJson() {
+  await cleanupDuplicates();
   const [trips, expenses, payments, clients, dictionaries] = await Promise.all([
     db.trips.toArray(), db.expenses.toArray(), db.payments.toArray(),
     db.clients.toArray(), db.dictionaries.toArray()
   ]);
 
   const dictTime = localStorage.getItem(LS_DICT_TIME) || new Date().toISOString();
+  const deletedItems = getDeletedItems();
 
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     trips, expenses, payments, clients,
+    deletedItems,
     dictionaries: {
       updatedAt: dictTime,
       items: dictionaries
@@ -30,6 +33,31 @@ export async function exportLocalDbToJson() {
 export async function mergeRemoteDbToLocal(remoteData) {
   if (!remoteData || typeof remoteData !== 'object') throw new Error('Некорректные данные');
 
+  const remoteDeleted = Array.isArray(remoteData.deletedItems) ? remoteData.deletedItems : [];
+  const localDeleted = getDeletedItems();
+
+  // Объединяем списки удалений по нескольким ключам
+  const mergedDeletedMap = new Map();
+  [...localDeleted, ...remoteDeleted].forEach(d => {
+    if (d) {
+      const key = d.uuid || d.compositeKey || `${d.tableName || ''}_${d.id || ''}_${d.tripId || ''}_${d.amount || ''}_${d.date || ''}`;
+      mergedDeletedMap.set(key, d);
+    }
+  });
+
+  const mergedDeletedArray = Array.from(mergedDeletedMap.values());
+  localStorage.setItem('btrips_deleted_items', JSON.stringify(mergedDeletedArray));
+
+  const isItemDeleted = (tableName, item) => {
+    if (!item) return false;
+    const itemUuid = item.uuid || '';
+    const itemKey = `${tableName}_${item.tripId || ''}_${item.amount || ''}_${item.date || ''}_${(item.note || item.description || '').trim()}`;
+
+    return mergedDeletedArray.some(d => 
+      ((itemUuid && d.uuid === itemUuid) || d.compositeKey === itemKey || d.uuid === itemKey)
+    );
+  };
+
   const mergeTable = async (tableName, remoteItems) => {
     if (!Array.isArray(remoteItems)) return;
     const table = db[tableName];
@@ -38,16 +66,31 @@ export async function mergeRemoteDbToLocal(remoteData) {
 
     for (const item of remoteItems) {
       if (!item) continue;
+
+      // Если объект в списке удаленных — удаляем из локальной базы и не вставляем!
+      if (isItemDeleted(tableName, item)) {
+        const localMatch = localItems.find(l => 
+          (l.uuid && l.uuid === item.uuid) ||
+          (l.tripId === item.tripId && l.amount === item.amount && l.date === item.date)
+        );
+        if (localMatch) {
+          await table.delete(localMatch.id);
+        }
+        continue;
+      }
+
       let existing = null;
 
       if (tableName === 'trips') {
         existing = localItems.find(l =>
+          (l.uuid && l.uuid === item.uuid) ||
           (l.appNo && l.appNo === item.appNo) ||
           (l.client === item.client && l.startDate === item.startDate)
         );
       } else if (tableName === 'expenses' || tableName === 'payments') {
         existing = localItems.find(l =>
-          l.tripId === item.tripId && l.amount === item.amount && l.date === item.date
+          (l.uuid && l.uuid === item.uuid) ||
+          (l.tripId === item.tripId && l.amount === item.amount && l.date === item.date)
         );
       } else if (tableName === 'clients') {
         existing = localItems.find(l =>
@@ -70,6 +113,8 @@ export async function mergeRemoteDbToLocal(remoteData) {
   await mergeTable('expenses',     remoteData.expenses);
   await mergeTable('payments',     remoteData.payments);
   await mergeTable('clients',      remoteData.clients);
+
+  await cleanupDuplicates();
 
   // ─────────────────────────────────────────────────────────────────
   // УМНАЯ СИНХРОНИЗАЦИЯ СПРАВОЧНИКОВ:

@@ -27,10 +27,13 @@
 
   <header>
     <h1><span class="material-symbols-outlined">flight_takeoff</span> Учет Командировок</h1>
-    <div style="display:flex; align-items:center; gap:10px;">
+    <div style="display:flex; align-items:center; gap:8px;">
       <div class="offline-badge">
         <span class="material-symbols-outlined" style="font-size:16px;">wifi_off</span> Offline
       </div>
+      <button class="header-btn" onclick="switchTab('reportsTab')" title="Центр отчетов" style="background:rgba(255,255,255,0.2); border:none; color:#FFFFFF; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+        <span class="material-symbols-outlined" style="font-size:20px;">description</span>
+      </button>
       <button class="header-btn" onclick="switchTab('settingsTab')" title="Настройки и Синхронизация" style="background:rgba(255,255,255,0.2); border:none; color:#FFFFFF; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">
         <span class="material-symbols-outlined" style="font-size:20px;">settings</span>
       </button>
@@ -191,6 +194,14 @@
           <div class="form-group">
             <label>Описание расхода / Назначение</label>
             <input type="text" id="expenseDesc" class="form-control" placeholder="Отель, АЗС Лукойл, авиабилет и т.д.">
+          </div>
+
+          <div class="form-group">
+            <label>Способ оплаты</label>
+            <select id="expensePaymentType" class="form-control">
+              <option value="cash">💵 Личные средства (в расчёт долга вам)</option>
+              <option value="cashless">💳 Оплата компанией / Безнал (в справочную секцию)</option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -367,25 +378,26 @@
     <div id="reportsTab" class="tab-content">
       <div class="card">
         <div class="card-title">
-          <span class="material-symbols-outlined">description</span> Генерация отчетов (Офлайн)
+          <span class="material-symbols-outlined">description</span> Центр генерации отчетов
         </div>
 
-        <div style="margin-bottom: 20px;">
-          <label style="font-size: 13px; font-weight: 500; display: block; margin-bottom: 6px;">Скачать полный сводный отчет Excel (.xlsx):</label>
-          <button type="button" class="btn" onclick="downloadExcelReport()">
-            <span class="material-symbols-outlined">table_chart</span> Сформировать Excel (.xlsx)
-          </button>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">Выберите командировку:</label>
+          <select id="reportTripSelect" class="form-control" style="font-weight: 500;"></select>
         </div>
 
-        <div style="border-top: 1px solid #E1E2EC; padding-top: 16px;">
-          <label style="font-size: 13px; font-weight: 500; display: block; margin-bottom: 6px;">Сформировать PDF Авансовый отчет с фото чеков:</label>
-          <div class="form-group">
-            <select id="reportTripId" class="form-control"></select>
-          </div>
-          <button type="button" class="btn btn-secondary" onclick="downloadPDFReport()">
-            <span class="material-symbols-outlined">picture_as_pdf</span> Сформировать PDF Авансовый отчет
-          </button>
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">Выберите тип отчета:</label>
+          <select id="reportTypeSelect" class="form-control" style="font-weight: 500;">
+            <option value="ao1">📊 Авансовый отчет Excel (Форма АО-1)</option>
+            <option value="pdf">📄 PDF Авансовый отчет с фото чеков</option>
+            <option value="allExcel">🌐 Полная сводная ведомость всех поездок (Excel)</option>
+          </select>
         </div>
+
+        <button type="button" class="btn" style="width: 100%; font-weight: 600; padding: 12px; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="generateSelectedReport()">
+          <span class="material-symbols-outlined">download</span> Сформировать и скачать отчет
+        </button>
       </div>
     </div>
 
@@ -600,6 +612,14 @@
         <div class="form-group">
           <label>Описание расхода / Назначение</label>
           <input type="text" id="quickExpenseDesc" class="form-control" placeholder="Отель, АЗС Лукойл, авиабилет и т.д.">
+        </div>
+
+        <div class="form-group">
+          <label>Способ оплаты</label>
+          <select id="quickExpensePaymentType" class="form-control">
+            <option value="cash">💵 Личные средства (в расчёт долга вам)</option>
+            <option value="cashless">💳 Оплата компанией / Безнал (в справочную секцию)</option>
+          </select>
         </div>
 
         <div class="form-group">

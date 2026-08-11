@@ -137,7 +137,105 @@ export function calculateTripDays(startStr, finishStr) {
 }
 
 // Первичная инициализация базовых справочников
+export function generateUUID() {
+  return Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+}
+
+export function getDeletedItems() {
+  try {
+    const raw = localStorage.getItem('btrips_deleted_items');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function markItemDeleted(tableName, item) {
+  if (!item) return;
+  const deletedList = getDeletedItems();
+  const uuid = item.uuid || '';
+  const compositeKey = `${tableName}_${item.tripId || ''}_${item.amount || ''}_${item.date || ''}_${(item.note || item.description || '').trim()}`;
+  
+  if (!deletedList.some(d => (uuid && d.uuid === uuid) || d.compositeKey === compositeKey)) {
+    deletedList.push({
+      tableName,
+      uuid,
+      compositeKey,
+      id: item.id,
+      tripId: item.tripId,
+      amount: item.amount,
+      date: item.date,
+      note: item.note || item.description || '',
+      deletedAt: new Date().toISOString()
+    });
+    localStorage.setItem('btrips_deleted_items', JSON.stringify(deletedList));
+  }
+}
+
+export async function cleanupDuplicates() {
+  try {
+    // 1. Очистка дубликатов выплат
+    const payments = await db.payments.toArray();
+    const paymentGroupMap = new Map();
+    for (const p of payments) {
+      const key = `p_${p.tripId}_${p.amount}_${p.date}_${(p.note || '').trim()}`;
+      if (!paymentGroupMap.has(key)) {
+        paymentGroupMap.set(key, []);
+      }
+      paymentGroupMap.get(key).push(p);
+    }
+
+    for (const [key, group] of paymentGroupMap.entries()) {
+      if (group.length > 1) {
+        const [first, ...dupes] = group;
+        for (const dupe of dupes) {
+          await db.payments.delete(dupe.id);
+          markItemDeleted('payments', dupe);
+        }
+      }
+    }
+
+    // 2. Очистка дубликатов расходов
+    const expenses = await db.expenses.toArray();
+    const expenseGroupMap = new Map();
+    for (const e of expenses) {
+      const key = `e_${e.tripId}_${e.amount}_${e.date}_${(e.description || '').trim()}`;
+      if (!expenseGroupMap.has(key)) {
+        expenseGroupMap.set(key, []);
+      }
+      expenseGroupMap.get(key).push(e);
+    }
+
+    for (const [key, group] of expenseGroupMap.entries()) {
+      if (group.length > 1) {
+        const [first, ...dupes] = group;
+        for (const dupe of dupes) {
+          await db.expenses.delete(dupe.id);
+          markItemDeleted('expenses', dupe);
+        }
+      }
+    }
+
+    // 3. Гарантируем наличие uuid у всех оставшихся элементов
+    const allTrips = await db.trips.toArray();
+    for (const t of allTrips) {
+      if (!t.uuid) await db.trips.update(t.id, { uuid: generateUUID() });
+    }
+    const allExp = await db.expenses.toArray();
+    for (const e of allExp) {
+      if (!e.uuid) await db.expenses.update(e.id, { uuid: generateUUID() });
+    }
+    const allPay = await db.payments.toArray();
+    for (const p of allPay) {
+      if (!p.uuid) await db.payments.update(p.id, { uuid: generateUUID() });
+    }
+  } catch (err) {
+    console.error("Cleanup duplicates error:", err);
+  }
+}
+
 export async function seedInitialData() {
+  await cleanupDuplicates();
   const dictCount = await db.dictionaries.count();
   if (dictCount === 0) {
     await db.dictionaries.bulkAdd([
@@ -154,6 +252,16 @@ export async function seedInitialData() {
       { category: 'status', value: 'Выплачен' }
     ]);
   }
+}
+
+export function getCostArticleByWorkType(workType) {
+  const wt = String(workType || '').toLowerCase();
+  if (wt.includes('пнр') || wt.includes('пусконаладоч')) return '1.3';
+  if (wt.includes('негарант') || wt.includes('не гарант') || wt.includes('платн') || wt.includes('ремонт') || wt.includes('обслуж') || wt.includes('диагност')) return '1.4.2';
+  if (wt.includes('гарант')) return '1.4.1';
+  if (wt.includes('обучен')) return '1.6';
+  if (wt.includes('продаж') || wt.includes('выставк') || wt.includes('маркетинг')) return '1.5';
+  return '1.4.2';
 }
 
 // Подсчет полного агрегированного баланса по всем поездкам
@@ -176,7 +284,14 @@ export async function getAggregatedSummary() {
     const carMetrics = calculateCarMetrics(t);
 
     const tExpenses = expenses.filter(e => String(e.tripId) === String(t.id));
-    const expensesTotal = tExpenses.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+    
+    // Наличные расходы (личные чеки) идут в расчет долга сотруднику
+    const cashExpenses = tExpenses.filter(e => e.paymentType !== 'cashless');
+    const expensesTotal = cashExpenses.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+
+    // Безналичные расходы (оплата компанией) фиксируются справочно
+    const cashlessExpenses = tExpenses.filter(e => e.paymentType === 'cashless');
+    const cashlessTotal = cashlessExpenses.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
 
     const depreciation = carMetrics ? carMetrics.depreciationCost : 0;
     const totalOwed = perDiemSum + expensesTotal + depreciation;
@@ -205,6 +320,7 @@ export async function getAggregatedSummary() {
       perDiemSum,
       carMetrics,
       expensesTotal,
+      cashlessTotal,
       depreciationCost: depreciation,
       totalOwed,
       paymentsTotal,

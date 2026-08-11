@@ -1,5 +1,5 @@
-import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregatedSummary, formatDateToRu, getTodayRuDate, parseRuDate, getFuelSettings, calculateCarMetrics } from './db.js';
-import { exportToExcel, exportToPDF } from './reports.js';
+import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregatedSummary, formatDateToRu, getTodayRuDate, parseRuDate, getFuelSettings, calculateCarMetrics, markItemDeleted, cleanupDuplicates } from './db.js';
+import { exportToExcel, exportToPDF, exportAO1Excel } from './reports.js';
 import { exportLocalDbToJson, mergeRemoteDbToLocal, uploadToGithubGist, downloadAndMergeFromGithubGist } from './githubSync.js';
 
 let selectedFileBase64 = null;
@@ -111,6 +111,7 @@ function setupDefaults() {
   window.setTripStatus = setTripStatus;
   window.setSummaryChipFilter = setSummaryChipFilter;
   window.renderFilteredSummaryList = renderFilteredSummaryList;
+  window.generateSelectedReport = generateSelectedReport;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -225,6 +226,7 @@ function switchTab(tabId) {
 }
 
 async function syncWithGithub() {
+  await cleanupDuplicates();
   const token = localStorage.getItem('github_token') || document.getElementById('githubTokenInput').value.trim();
   if (!token) {
     showToast("Сначала укажите GitHub Personal Access Token");
@@ -450,25 +452,25 @@ async function loadData() {
     filterSelect.innerHTML += `<option value="status:${st}">Статус: ${st}</option>`;
   });
 
-  // Селекты для чеков и выплат
+  // Селекты для чеков, выплат и отчетов
   const expTripSelect = document.getElementById('expenseTripId');
   const payTripSelect = document.getElementById('paymentTripId');
-  const reportTripSelect = document.getElementById('reportTripId');
+  const reportTripSelect = document.getElementById('reportTripSelect') || document.getElementById('reportTripId');
   
-  expTripSelect.innerHTML = '';
-  payTripSelect.innerHTML = '';
-  reportTripSelect.innerHTML = '';
+  if (expTripSelect) expTripSelect.innerHTML = '';
+  if (payTripSelect) payTripSelect.innerHTML = '';
+  if (reportTripSelect) reportTripSelect.innerHTML = '';
 
   if (trips.length === 0) {
-    expTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
-    payTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
-    reportTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
+    if (expTripSelect) expTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
+    if (payTripSelect) payTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
+    if (reportTripSelect) reportTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
   } else {
     trips.forEach(t => {
-      const label = `ID ${t.id} | ${t.appNo || ''} (${t.client || 'Поездка'})`;
-      expTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
-      payTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
-      reportTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
+      const label = `№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})`;
+      if (expTripSelect) expTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
+      if (payTripSelect) payTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
+      if (reportTripSelect) reportTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
     });
   }
 
@@ -995,11 +997,13 @@ async function handleAddExpense(event) {
     return;
   }
 
+  const paymentType = document.getElementById('expensePaymentType')?.value || 'cash';
   await db.expenses.add({
     tripId: tripId,
     date: formatDateToRu(document.getElementById('expenseDate').value),
     amount: parseFloat(document.getElementById('expenseAmount').value) || 0,
     description: document.getElementById('expenseDesc').value,
+    paymentType: paymentType,
     receiptBase64: selectedFileBase64 || '',
     receiptName: selectedFileName || '',
     updatedAt: new Date().toISOString()
@@ -1346,6 +1350,8 @@ function closeEditBottomSheet(highlightTargetId) {
 
 async function deleteExpenseItem(expenseId, tripId, targetId) {
   if (confirm("Вы уверены, что хотите удалить этот расход?")) {
+    const item = await db.expenses.get(parseInt(expenseId));
+    if (item) markItemDeleted('expenses', item);
     await db.expenses.delete(parseInt(expenseId));
     closeEditBottomSheet(targetId);
     showToast("🗑 Расход удален!");
@@ -1355,6 +1361,8 @@ async function deleteExpenseItem(expenseId, tripId, targetId) {
 
 async function deletePaymentItem(paymentId, tripId, targetId) {
   if (confirm("Вы уверены, что хотите удалить эту выплату?")) {
+    const item = await db.payments.get(parseInt(paymentId));
+    if (item) markItemDeleted('payments', item);
     await db.payments.delete(parseInt(paymentId));
     closeEditBottomSheet(targetId);
     showToast("🗑 Выплата удалена!");
@@ -1425,6 +1433,14 @@ async function editExpenseItem(expenseId, tripId) {
       <div class="form-group" style="margin-bottom: 14px;">
         <label style="font-weight: 500; font-size: 13px; margin-bottom: 4px; display:block;">Описание расхода / Назначение</label>
         <input type="text" id="editExpDesc-${expenseId}" class="form-control" style="font-size: 14px; padding: 10px 12px;" value="${exp.description || ''}" placeholder="Отель, АЗС, Авиабилеты...">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label style="font-weight: 500; font-size: 13px; margin-bottom: 4px; display:block;">Способ оплаты</label>
+        <select id="editExpPaymentType-${expenseId}" class="form-control" style="font-size: 14px; padding: 10px 12px;">
+          <option value="cash" ${exp.paymentType !== 'cashless' ? 'selected' : ''}>💵 Личные средства (в расчёт долга вам)</option>
+          <option value="cashless" ${exp.paymentType === 'cashless' ? 'selected' : ''}>💳 Оплата компанией / Безнал (в справочную секцию)</option>
+        </select>
       </div>
 
       <!-- БЛОК УПРАВЛЕНИЯ ФОТО ЧЕКА -->
@@ -1509,6 +1525,7 @@ async function saveInlineExpense(expenseId, tripId, targetId) {
   const dateVal = document.getElementById(`editExpDate-${expenseId}`).value;
   const amountVal = parseFloat(document.getElementById(`editExpAmount-${expenseId}`).value) || 0;
   const descVal = document.getElementById(`editExpDesc-${expenseId}`).value;
+  const paymentTypeVal = document.getElementById(`editExpPaymentType-${expenseId}`)?.value || 'cash';
 
   const photoData = inlinePhotoState[expenseId] || {};
 
@@ -1516,6 +1533,7 @@ async function saveInlineExpense(expenseId, tripId, targetId) {
     date: formatDateToRu(dateVal),
     amount: amountVal,
     description: descVal,
+    paymentType: paymentTypeVal,
     updatedAt: new Date().toISOString()
   };
 
@@ -1656,6 +1674,35 @@ async function handleInlineUpdateTrip(event, tripId) {
 
   showToast("✅ Изменения сохранены!");
   await loadData();
+}
+
+async function generateSelectedReport() {
+  const type = document.getElementById('reportTypeSelect')?.value || 'ao1';
+  const tripSelect = document.getElementById('reportTripSelect') || document.getElementById('reportTripId');
+  const tripId = tripSelect?.value;
+
+  try {
+    if (type === 'allExcel') {
+      await exportToExcel();
+      showToast("📊 Сводный реестр Excel сформирован!");
+      return;
+    }
+
+    if (!tripId) {
+      showToast("⚠️ Выберите командировку для отчета!");
+      return;
+    }
+
+    if (type === 'ao1') {
+      await exportAO1Excel(tripId);
+      showToast("📊 Авансовый отчет АО-1 (Excel) сформирован!");
+    } else if (type === 'pdf') {
+      await exportToPDF(tripId);
+      showToast("📕 PDF Авансовый отчет с фото сформирован!");
+    }
+  } catch (err) {
+    showToast("❌ Ошибка при создании отчета: " + err);
+  }
 }
 
 async function downloadExcelReport() {
@@ -1873,6 +1920,8 @@ function toggleGlobalPaymentExpand(payId) {
 
 async function deleteGlobalExpenseItem(expenseId, targetId) {
   if (confirm("Вы уверены, что хотите удалить этот расход?")) {
+    const item = await db.expenses.get(parseInt(expenseId));
+    if (item) markItemDeleted('expenses', item);
     await db.expenses.delete(parseInt(expenseId));
     closeEditBottomSheet(targetId);
     showToast("🗑 Расход удален!");
@@ -1882,6 +1931,8 @@ async function deleteGlobalExpenseItem(expenseId, targetId) {
 
 async function deleteGlobalPaymentItem(paymentId, targetId) {
   if (confirm("Вы уверены, что хотите удалить эту выплату?")) {
+    const item = await db.payments.get(parseInt(paymentId));
+    if (item) markItemDeleted('payments', item);
     await db.payments.delete(parseInt(paymentId));
     closeEditBottomSheet(targetId);
     showToast("🗑 Выплата удалена!");
@@ -1986,6 +2037,7 @@ async function handleQuickAddExpense(event) {
   const rawDate = document.getElementById('quickExpenseDate').value;
   const amount = parseFloat(document.getElementById('quickExpenseAmount').value);
   const desc = document.getElementById('quickExpenseDesc').value;
+  const paymentType = document.getElementById('quickExpensePaymentType')?.value || 'cash';
 
   let base64 = '';
   let fileName = '';
@@ -2000,6 +2052,7 @@ async function handleQuickAddExpense(event) {
     date: formatDateToRu(rawDate),
     amount: amount,
     description: desc,
+    paymentType: paymentType,
     receiptBase64: base64,
     receiptName: fileName,
     updatedAt: new Date().toISOString()
