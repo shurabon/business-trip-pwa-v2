@@ -492,6 +492,64 @@ header h1 {
   to { transform: translateY(0); }
 }
 
+/* DESKTOP MODAL VARIANTS (>= 769px) */
+@media (min-width: 769px) {
+  /* OPTION 1: CENTERED DIALOG */
+  .bottom-sheet-backdrop.desktop-modal-centered {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+
+  .bottom-sheet-backdrop.desktop-modal-centered .bottom-sheet-card {
+    width: 100% !important;
+    max-width: 520px !important;
+    height: auto !important;
+    max-height: 90vh !important;
+    border-radius: 24px !important;
+    padding: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35) !important;
+    animation: desktopModalFade 0.25s cubic-bezier(0.2, 0, 0, 1) forwards !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  }
+
+  /* OPTION 2: RIGHT SIDE DRAWER */
+  .bottom-sheet-backdrop.desktop-modal-right-drawer {
+    align-items: stretch !important;
+    justify-content: flex-end !important;
+    padding: 0 !important;
+    background: rgba(15, 23, 42, 0.45) !important;
+    backdrop-filter: blur(5px) !important;
+  }
+
+  .bottom-sheet-backdrop.desktop-modal-right-drawer .bottom-sheet-card {
+    width: 480px !important;
+    max-width: 90vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-top-left-radius: 24px !important;
+    border-bottom-left-radius: 24px !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    padding: 28px 24px !important;
+    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.25) !important;
+    animation: slideInRight 0.28s cubic-bezier(0.2, 0, 0, 1) forwards !important;
+    border-left: 1px solid rgba(225, 226, 236, 0.8) !important;
+  }
+}
+
+@keyframes desktopModalFade {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
 /* Metric Cards Dashboard */
 .metrics-grid {
   display: grid;
@@ -686,4 +744,77 @@ header h1 {
 .selected-item-inverted,
 .selected-item-inverted * {
   color: #FFFFFF !important;
+}
+
+/* Interactive 4-step Stepper for Trip Statuses */
+.trip-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #F1F5F9;
+  border-radius: 12px;
+  padding: 6px 10px;
+  margin: 8px 0;
+  gap: 4px;
+}
+
+.stepper-step {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748B;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.stepper-step:hover {
+  background: rgba(16, 85, 204, 0.08);
+}
+
+.stepper-step.active {
+  background: #FFFFFF;
+  color: var(--md-sys-color-primary);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.stepper-step.step-paid.active {
+  color: #16A34A !important;
+}
+
+.stepper-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #CBD5E1;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-step.active .stepper-dot {
+  background: var(--md-sys-color-primary);
+  color: #FFFFFF;
+}
+
+.stepper-step.step-paid.active .stepper-dot {
+  background: #16A34A !important;
+}
+
+.stepper-line {
+  flex: 1;
+  height: 2px;
+  background: #CBD5E1;
+}
+
+.stepper-line.active {
+  background: var(--md-sys-color-primary);
 }

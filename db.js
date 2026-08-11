@@ -186,6 +186,16 @@ export async function getAggregatedSummary() {
 
     const balance = paymentsTotal - totalOwed;
 
+    // Автоматическая смена статуса на "Выплачен" при полной выплате
+    let effectiveStatus = t.status || 'не подготовлен';
+    if (paymentsTotal >= totalOwed && totalOwed > 0) {
+      effectiveStatus = 'Выплачен';
+    } else if (effectiveStatus === 'Выплачен' && paymentsTotal < totalOwed) {
+      effectiveStatus = 'Подготовлен';
+    }
+
+    t.status = effectiveStatus;
+
     totalOwedAll += totalOwed;
     totalPaidAll += paymentsTotal;
 
@@ -198,7 +208,8 @@ export async function getAggregatedSummary() {
       depreciationCost: depreciation,
       totalOwed,
       paymentsTotal,
-      balance
+      balance,
+      effectiveStatus
     };
   });
 

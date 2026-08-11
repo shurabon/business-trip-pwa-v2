@@ -104,10 +104,13 @@ function setupDefaults() {
   window.closeQuickAddModal = closeQuickAddModal;
   window.previewQuickFile = previewQuickFile;
   window.handleQuickAddExpense = handleQuickAddExpense;
-  window.setSummaryChipFilter = setSummaryChipFilter;
   window.cancelInlineExpenseEdit = cancelInlineExpenseEdit;
   window.closeEditBottomSheet = closeEditBottomSheet;
   window.cancelInlinePaymentEdit = cancelInlinePaymentEdit;
+  window.saveDesktopModalStyle = saveDesktopModalStyle;
+  window.setTripStatus = setTripStatus;
+  window.setSummaryChipFilter = setSummaryChipFilter;
+  window.renderFilteredSummaryList = renderFilteredSummaryList;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -123,6 +126,31 @@ function loadFuelSettingsIntoInputs() {
   if (elPrice) elPrice.value = settings.pricePerLiter;
   if (elDeductible) elDeductible.value = settings.deductibleKm;
   if (elRate) elRate.value = settings.ratePerKm;
+
+  const styleSelect = document.getElementById('desktopModalStyleSelect');
+  if (styleSelect) styleSelect.value = getDesktopModalStyle();
+}
+
+function getDesktopModalStyle() {
+  return localStorage.getItem('desktopModalStyle') || 'centered';
+}
+
+function applyDesktopModalStyle() {
+  const modal = document.getElementById('editBottomSheetModal');
+  if (!modal) return;
+  const styleVal = getDesktopModalStyle();
+  modal.classList.remove('desktop-modal-centered', 'desktop-modal-right-drawer');
+  if (styleVal === 'rightDrawer') {
+    modal.classList.add('desktop-modal-right-drawer');
+  } else {
+    modal.classList.add('desktop-modal-centered');
+  }
+}
+
+function saveDesktopModalStyle(val) {
+  localStorage.setItem('desktopModalStyle', val || 'centered');
+  applyDesktopModalStyle();
+  showToast("✅ Вид окна на ПК сохранен!");
 }
 
 function saveFuelSettings() {
@@ -595,6 +623,88 @@ function renderHeroBalanceWidget(aggregated) {
   }
 }
 
+async function setTripStatus(tripId, newStatus) {
+  const t = await db.trips.get(parseInt(tripId));
+  if (!t) return;
+
+  // Если вручную переключаем на статус "Выплачен"
+  if (newStatus === 'Выплачен') {
+    const aggregated = await getAggregatedSummary();
+    const summary = aggregated.tripSummaries.find(s => String(s.trip.id) === String(tripId));
+    
+    // Оставшийся неоплаченным долг сотруднику
+    const remainingDebt = summary ? (summary.totalOwed - summary.paymentsTotal) : 0;
+
+    if (remainingDebt > 0) {
+      const confirmAutoPay = confirm(
+        `Поездке №${t.appNo || t.id} требуется выплата на сумму ${remainingDebt.toLocaleString('ru-RU')} ₽.\n\n` +
+        `Нажмите OK, чтобы встроить полную выплату и закрыть поездку.\n` +
+        `При нажатии Отмена статус "Выплачен" установлен НЕ БУДЕТ, так как за бухгалтерией числится долг.`
+      );
+
+      if (confirmAutoPay) {
+        const todayRu = formatDateToRu(new Date().toISOString());
+        await db.payments.add({
+          tripId: String(t.id),
+          date: todayRu,
+          amount: remainingDebt,
+          note: 'Окончательный расчет по поездки',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        showToast(`✅ Внесена выплата ${remainingDebt.toLocaleString('ru-RU')} ₽!`);
+      } else {
+        showToast("ℹ️ Статус не изменён: для статуса 'Выплачен' требуется погашение долга.");
+        return;
+      }
+    }
+  }
+
+  await db.trips.update(parseInt(tripId), {
+    status: newStatus,
+    updatedAt: new Date().toISOString()
+  });
+
+  showToast(`✅ Статус изменен на "${newStatus}"`);
+  await loadData();
+}
+
+function renderStepperHtml(t) {
+  const currentStatus = String(t.status || 'не подготовлен');
+
+  const isStep1Active = currentStatus === 'не подготовлен';
+  const isStep2Active = currentStatus === 'Подготовлен';
+  const isStep3Active = currentStatus === 'Отправлен';
+  const isStep4Active = currentStatus === 'Выплачен';
+
+  return `
+    <div class="trip-stepper" onclick="event.stopPropagation();">
+      <div class="stepper-step ${isStep1Active ? 'active' : ''}" title="Черновик / Сбор чеков" onclick="setTripStatus(${t.id}, 'не подготовлен')">
+        <div class="stepper-dot">1</div>
+        <span>Не подготовлен</span>
+      </div>
+      <div class="stepper-line ${isStep2Active || isStep3Active || isStep4Active ? 'active' : ''}"></div>
+      
+      <div class="stepper-step ${isStep2Active ? 'active' : ''}" title="Готов к отправке" onclick="setTripStatus(${t.id}, 'Подготовлен')">
+        <div class="stepper-dot">2</div>
+        <span>Подготовлен</span>
+      </div>
+      <div class="stepper-line ${isStep3Active || isStep4Active ? 'active' : ''}"></div>
+      
+      <div class="stepper-step ${isStep3Active ? 'active' : ''}" title="Передан в бухгалтерию" onclick="setTripStatus(${t.id}, 'Отправлен')">
+        <div class="stepper-dot">3</div>
+        <span>Отправлен</span>
+      </div>
+      <div class="stepper-line ${isStep4Active ? 'active' : ''}"></div>
+      
+      <div class="stepper-step step-paid ${isStep4Active ? 'active' : ''}" title="Выплаты получены / Расчет закрыт" onclick="setTripStatus(${t.id}, 'Выплачен')">
+        <div class="stepper-dot">4</div>
+        <span>Выплачен</span>
+      </div>
+    </div>
+  `;
+}
+
 function setSummaryChipFilter(val, btn) {
   const input = document.getElementById('summaryStatusFilter');
   if (input) input.value = val;
@@ -604,7 +714,7 @@ function setSummaryChipFilter(val, btn) {
 }
 
 async function renderFilteredSummaryList(aggregatedData) {
-  const filterVal = document.getElementById('summaryStatusFilter')?.value || 'onlyOpen';
+  const filterVal = document.getElementById('summaryStatusFilter')?.value || 'inProgress';
   const searchQuery = (document.getElementById('summarySearchInput')?.value || '').toLowerCase().trim();
   const aggregated = aggregatedData || await getAggregatedSummary();
   const container = document.getElementById('summaryList');
@@ -617,25 +727,58 @@ async function renderFilteredSummaryList(aggregatedData) {
 
   let filtered = aggregated.tripSummaries.slice();
 
-  if (filterVal === 'onlyOpen') {
+  if (filterVal === 'inProgress') {
     filtered = filtered.filter(s => {
-      const tripStatus = String(s.trip.status || '').toLowerCase();
-      const isClosedBalance = s.balance === 0;
-      const isSent = tripStatus.includes('отправлен');
-      if (isClosedBalance && isSent) return false;
-      return true;
+      const st = String(s.trip.status || 'не подготовлен');
+      return st === 'не подготовлен' || st === 'Подготовлен';
     });
-  } else if (filterVal.startsWith('status:')) {
-    const targetStatus = filterVal.replace('status:', '');
-    filtered = filtered.filter(s => String(s.trip.status) === targetStatus);
+  } else if (filterVal === 'sent') {
+    filtered = filtered.filter(s => String(s.trip.status) === 'Отправлен');
+  } else if (filterVal === 'paid') {
+    filtered = filtered.filter(s => String(s.trip.status) === 'Выплачен');
   }
+
+  const allExpenses = await db.expenses.toArray();
+  const allPayments = await db.payments.toArray();
 
   if (searchQuery) {
     filtered = filtered.filter(s => {
-      const client = String(s.trip.client || '').toLowerCase();
-      const target = String(s.trip.target || '').toLowerCase();
-      const appNo = String(s.trip.appNo || s.trip.id || '').toLowerCase();
-      return client.includes(searchQuery) || target.includes(searchQuery) || appNo.includes(searchQuery);
+      const t = s.trip;
+      const appNo = String(t.appNo || t.id || '').toLowerCase();
+      const client = String(t.client || '').toLowerCase();
+      const location = String(t.location || t.target || '').toLowerCase();
+      const workType = String(t.workType || '').toLowerCase();
+      const transport = String(t.transport || '').toLowerCase();
+      const note = String(t.note || '').toLowerCase();
+      const status = String(t.status || '').toLowerCase();
+      const startDate = String(t.startDate || '').toLowerCase();
+      const finishDate = String(t.finishDate || '').toLowerCase();
+
+      const tExpenses = allExpenses.filter(e => String(e.tripId) === String(t.id));
+      const expMatch = tExpenses.some(e =>
+        String(e.description || '').toLowerCase().includes(searchQuery) ||
+        String(e.amount || '').toLowerCase().includes(searchQuery) ||
+        String(e.date || '').toLowerCase().includes(searchQuery)
+      );
+
+      const tPayments = allPayments.filter(p => String(p.tripId) === String(t.id));
+      const payMatch = tPayments.some(p =>
+        String(p.note || p.purpose || '').toLowerCase().includes(searchQuery) ||
+        String(p.amount || '').toLowerCase().includes(searchQuery) ||
+        String(p.date || '').toLowerCase().includes(searchQuery)
+      );
+
+      return appNo.includes(searchQuery) ||
+             client.includes(searchQuery) ||
+             location.includes(searchQuery) ||
+             workType.includes(searchQuery) ||
+             transport.includes(searchQuery) ||
+             note.includes(searchQuery) ||
+             status.includes(searchQuery) ||
+             startDate.includes(searchQuery) ||
+             finishDate.includes(searchQuery) ||
+             expMatch ||
+             payMatch;
     });
   }
 
@@ -643,9 +786,6 @@ async function renderFilteredSummaryList(aggregatedData) {
     container.innerHTML = '<p style="color: #666; font-size: 14px;">По данному фильтру нет записей.</p>';
     return;
   }
-
-  const allExpenses = await db.expenses.toArray();
-  const allPayments = await db.payments.toArray();
 
   let html = '';
   filtered.forEach(s => {
@@ -762,6 +902,9 @@ async function renderFilteredSummaryList(aggregatedData) {
               <span class="material-symbols-outlined" style="font-size:16px; color:#666;">location_on</span> ${t.location || 'Город не указан'}
             </span>
           </div>
+
+          <!-- Интерактивный Стэппер Статусов -->
+          ${renderStepperHtml(t)}
 
           ${carWidgetHtml}
 
@@ -1326,6 +1469,7 @@ async function editExpenseItem(expenseId, tripId) {
   const modal = document.getElementById('editBottomSheetModal');
   if (card && modal) {
     card.innerHTML = editFormHtml;
+    applyDesktopModalStyle();
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -1454,6 +1598,7 @@ async function editPaymentItem(paymentId, tripId) {
   const modal = document.getElementById('editBottomSheetModal');
   if (card && modal) {
     card.innerHTML = editFormHtml;
+    applyDesktopModalStyle();
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }

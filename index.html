@@ -345,18 +345,19 @@
           </span>
         </div>
 
-        <!-- Поисковая строка и фильтры -->
         <div class="search-input-wrapper">
           <span class="material-symbols-outlined">search</span>
-          <input type="text" id="summarySearchInput" class="form-control" placeholder="🔍 Поиск по клиенту, объекту, № заявки..." oninput="renderFilteredSummaryList()">
+          <input type="search" id="summarySearchInput" name="summary_search_query" class="form-control" placeholder="🔍 Поиск по клиенту, объекту, № заявки..." oninput="renderFilteredSummaryList()" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
         </div>
 
         <div class="filter-chips-container">
-          <button type="button" class="filter-chip active" onclick="setSummaryChipFilter('onlyOpen', this)">⏳ В работе и долг</button>
-          <button type="button" class="filter-chip" onclick="setSummaryChipFilter('all', this)">🌐 Все командировки</button>
+          <button type="button" class="filter-chip active" onclick="setSummaryChipFilter('inProgress', this)">⏳ В работе</button>
+          <button type="button" class="filter-chip" onclick="setSummaryChipFilter('sent', this)">📋 В бухгалтерии</button>
+          <button type="button" class="filter-chip" onclick="setSummaryChipFilter('paid', this)">✅ Выплачено</button>
+          <button type="button" class="filter-chip" onclick="setSummaryChipFilter('all', this)">🌐 Все</button>
         </div>
 
-        <input type="hidden" id="summaryStatusFilter" value="onlyOpen">
+        <input type="hidden" id="summaryStatusFilter" value="inProgress">
 
         <div id="summaryList">Загрузка...</div>
       </div>
@@ -487,8 +488,16 @@
           <small style="color:#666; font-size:11px;">Формула: Пробег × 5 ₽/км (начисляется при пробеге > 70 км)</small>
         </div>
 
+        <div class="form-group" style="margin-bottom: 16px; border-top: 1px dashed #CBD5E1; padding-top: 12px;">
+          <label style="font-size:12px; font-weight:600; color:var(--md-sys-color-primary);">💻 Вид окна редактирования на ПК / Ноутбуках</label>
+          <select id="desktopModalStyleSelect" class="form-control" style="font-weight:500;" onchange="saveDesktopModalStyle(this.value)">
+            <option value="centered">По центру экрана (Material 3 Dialog)</option>
+            <option value="rightDrawer">Выезжающая боковая панель справа (Right Side Sheet)</option>
+          </select>
+        </div>
+
         <button class="btn" style="width:100%; font-weight:600;" onclick="saveFuelSettings()">
-          💾 Сохранить нормы топлива и амортизации
+          💾 Сохранить настройки и нормы
         </button>
       </div>
 
@@ -511,7 +520,7 @@
         </div>
 
         <!-- Справочник 2: Виды транспорта -->
-        <div style="margin-bottom: 24px; border-bottom: 1px solid #E1E2EC; padding-bottom: 16px;">
+        <div>
           <h3 style="font-size: 15px; font-weight: 500; color: var(--md-sys-color-primary); margin-bottom: 10px; display:flex; align-items:center; gap:6px;">
             <span class="material-symbols-outlined">directions_car</span> Виды транспорта
           </h3>
@@ -519,18 +528,6 @@
           <div class="form-row">
             <input type="text" id="newTransportInput" class="form-control" placeholder="Новый вид транспорта...">
             <button class="btn btn-sm" onclick="addDictItem('transport', 'newTransportInput')">➕ Добавить</button>
-          </div>
-        </div>
-
-        <!-- Справочник 3: Статусы командировок -->
-        <div>
-          <h3 style="font-size: 15px; font-weight: 500; color: var(--md-sys-color-primary); margin-bottom: 10px; display:flex; align-items:center; gap:6px;">
-            <span class="material-symbols-outlined">label</span> Статусы командировок
-          </h3>
-          <div id="dictStatusesList" style="margin-bottom: 12px;"></div>
-          <div class="form-row">
-            <input type="text" id="newStatusInput" class="form-control" placeholder="Новый статус...">
-            <button class="btn btn-sm" onclick="addDictItem('status', 'newStatusInput')">➕ Добавить</button>
           </div>
         </div>
 
