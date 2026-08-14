@@ -21,15 +21,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-  <script type="module" crossorigin src="./assets/index-C8gFqdJ5.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-Bj5HSNjJ.css">
+  <script type="module" crossorigin src="./assets/index-CeQHOZhA.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CJ8ll8UY.css">
 </head>
 <body>
 
   <header>
     <h1><span class="material-symbols-outlined">flight_takeoff</span> Учет Командировок</h1>
     <div style="display:flex; align-items:center; gap:8px;">
-      <div class="offline-badge">
+      <div class="offline-badge" id="networkStatusBadge">
         <span class="material-symbols-outlined" style="font-size:16px;">wifi_off</span> Offline
       </div>
       <button class="header-btn" onclick="switchTab('reportsTab')" title="Центр отчетов" style="background:rgba(255,255,255,0.2); border:none; color:#FFFFFF; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">
@@ -46,10 +46,10 @@
     <!-- Navigation Tabs -->
     <div class="nav-tabs">
       <button class="nav-tab active" onclick="switchTab('tripsTab')">
-        <span class="material-symbols-outlined">luggage</span> Командировки
+        <span class="material-symbols-outlined">luggage</span> Поездки
       </button>
       <button class="nav-tab" onclick="switchTab('expenseTab')">
-        <span class="material-symbols-outlined">receipt_long</span> Расход / Чек
+        <span class="material-symbols-outlined">receipt_long</span> Расходы
       </button>
       <button class="nav-tab" onclick="switchTab('paymentTab')">
         <span class="material-symbols-outlined">credit_card</span> Выплата
@@ -176,7 +176,7 @@
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
               <label style="margin:0;">Выберите командировку</label>
               <label style="font-size:12px; color:#555; cursor:pointer; display:flex; align-items:center; gap:4px;">
-                <input type="checkbox" id="showClosedTripsExp" onchange="loadData()"> 🔍 Все включая закрытые
+                <input type="checkbox" id="showClosedTripsExp" onchange="refreshTripSelects()"> 🔍 Все включая закрытые
               </label>
             </div>
             <select id="expenseTripId" class="form-control" required></select>
@@ -235,8 +235,8 @@
               <div id="fileNamePreview" style="margin-top:6px; font-size:13px; color:#666;"></div>
               <button type="button" onclick="clearReceiptPhoto()" style="margin-top:6px; background:none; border:none; color:#E53935; cursor:pointer; font-size:13px;">✕ Удалить фото</button>
             </div>
-            <div id="receiptPlaceholder" style="color:#999; font-size:13px; text-align:center; padding:10px 0;">
-              <span class="material-symbols-outlined" style="font-size:28px; display:block; color:#CCC;">add_a_photo</span>
+            <div id="receiptPlaceholder" style="color:#888; font-size:13px; text-align:center; padding:10px 0;">
+              <span class="material-symbols-outlined" style="font-size:28px; display:block; color:#888;">add_a_photo</span>
               Файл не выбран
             </div>
           </div>
@@ -282,7 +282,7 @@
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
               <label style="margin:0;">Выберите командировку</label>
               <label style="font-size:12px; color:#555; cursor:pointer; display:flex; align-items:center; gap:4px;">
-                <input type="checkbox" id="showClosedTripsPay" onchange="loadData()"> 🔍 Все включая закрытые
+                <input type="checkbox" id="showClosedTripsPay" onchange="refreshTripSelects()"> 🔍 Все включая закрытые
               </label>
             </div>
             <select id="paymentTripId" class="form-control" required></select>
@@ -396,7 +396,7 @@
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <label style="font-size: 13px; font-weight: 600; margin:0;">Выберите командировку:</label>
             <label style="font-size:12px; color:#555; cursor:pointer; display:flex; align-items:center; gap:4px;">
-              <input type="checkbox" id="showClosedTripsRep" onchange="loadData()"> 🔍 Все включая закрытые
+              <input type="checkbox" id="showClosedTripsRep" onchange="refreshTripSelects()"> 🔍 Все включая закрытые
             </label>
           </div>
           <select id="reportTripSelect" class="form-control" style="font-weight: 500;"></select>
@@ -444,8 +444,8 @@
         </div>
 
         <!-- GIST ID (для второго устройства) -->
-        <div class="form-group" style="background: #FFF9E6; border: 1px solid #FFE082; padding: 14px; border-radius: 12px; margin-bottom: 16px;">
-          <label style="font-weight: 500; color: #B06000; display: block; margin-bottom: 6px;">
+        <div class="form-group" style="background: #F4F7FF; border: 2px solid var(--md-sys-color-primary-container); padding: 14px; border-radius: 12px; margin-bottom: 16px;">
+          <label style="font-weight: 500; color: var(--md-sys-color-primary); display: block; margin-bottom: 6px;">
             Gist ID (для второго устройства):
           </label>
           <p style="font-size: 12px; color: #666; margin: 0 0 8px;">
