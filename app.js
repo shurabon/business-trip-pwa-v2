@@ -6,6 +6,7 @@ let selectedFileBase64 = null;
 let selectedFileName = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
+  updateNetworkStatus();
   await seedInitialData();
   setupDefaults();
   setupServiceWorker();
@@ -14,6 +15,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   const savedTab = sessionStorage.getItem('activeTab');
   if (savedTab) {
     switchTab(savedTab);
+  }
+});
+
+
+function updateNetworkStatus() {
+  const badge = document.getElementById('networkStatusBadge');
+  if (!badge) return;
+  if (navigator.onLine) {
+    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">wifi</span> Online`;
+    badge.style.background = '#E6F4EA';
+    badge.style.color = '#137333';
+  } else {
+    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">wifi_off</span> Offline`;
+    badge.style.background = '#FCE8E6';
+    badge.style.color = '#C5221F';
+  }
+}
+window.addEventListener('online', updateNetworkStatus);
+window.addEventListener('offline', updateNetworkStatus);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closePhotoModal();
+    closeQuickAddModal();
+    if (typeof closeEditBottomSheet === 'function') closeEditBottomSheet();
   }
 });
 
@@ -49,18 +75,7 @@ function setupDefaults() {
     document.getElementById('syncStatusBadge').innerHTML = `🟢 GitHub токен подключен (${masked})`;
   }
 
-  // Загружаем GitHub Pages токен из localStorage
-  const savedPagesToken = localStorage.getItem('github_pages_token');
-  if (savedPagesToken && document.getElementById('githubPagesTokenInput')) {
-    document.getElementById('githubPagesTokenInput').value = savedPagesToken;
-  }
 
-  const savedPagesUrl = localStorage.getItem('gh_pages_url');
-  if (savedPagesUrl && document.getElementById('ghPagesBanner')) {
-    const banner = document.getElementById('ghPagesBanner');
-    banner.style.display = 'block';
-    banner.innerHTML = `🟢 Ваша постоянная страница GitHub Pages: <a href="${savedPagesUrl}" target="_blank" style="color:#137333; font-weight:bold;">${savedPagesUrl}</a>`;
-  }
 
   // Загружаем Gist ID из localStorage
   const savedGistId = localStorage.getItem('github_gist_id');
@@ -126,8 +141,7 @@ function setupDefaults() {
   window.renderFilteredSummaryList = renderFilteredSummaryList;
   window.generateSelectedReport = generateSelectedReport;
   window.openPdfAttachment = openPdfAttachment;
-  window.deployToGitHubPages = deployToGitHubPages;
-  window.saveGithubPagesToken = saveGithubPagesToken;
+  window.refreshTripSelects = refreshTripSelects;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -519,6 +533,49 @@ async function loadData() {
   renderDictionariesManager(dicts);
   await renderExpensesList();
   await renderPaymentsList();
+}
+
+
+async function refreshTripSelects() {
+  const trips = await db.trips.toArray();
+  const expTripSelect = document.getElementById('expenseTripId');
+  const payTripSelect = document.getElementById('paymentTripId');
+  const reportTripSelect = document.getElementById('reportTripSelect') || document.getElementById('reportTripId');
+  
+  const showClosedExp = document.getElementById('showClosedTripsExp')?.checked;
+  const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
+  const showClosedRep = document.getElementById('showClosedTripsRep')?.checked;
+
+  const expTrips = showClosedExp ? trips : trips.filter(t => t.status !== 'Выплачен');
+  const payTrips = showClosedPay ? trips : trips.filter(t => t.status !== 'Выплачен');
+  const repTrips = showClosedRep ? trips : trips.filter(t => t.status !== 'Выплачен');
+
+  if (expTripSelect) {
+    const currentExpVal = expTripSelect.value;
+    expTripSelect.innerHTML = expTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
+    expTrips.forEach(t => {
+      expTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
+    });
+    if (currentExpVal) expTripSelect.value = currentExpVal;
+  }
+
+  if (payTripSelect) {
+    const currentPayVal = payTripSelect.value;
+    payTripSelect.innerHTML = payTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
+    payTrips.forEach(t => {
+      payTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
+    });
+    if (currentPayVal) payTripSelect.value = currentPayVal;
+  }
+
+  if (reportTripSelect) {
+    const currentRepVal = reportTripSelect.value;
+    reportTripSelect.innerHTML = repTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
+    repTrips.forEach(t => {
+      reportTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
+    });
+    if (currentRepVal) reportTripSelect.value = currentRepVal;
+  }
 }
 
 function renderDictionariesManager(dicts) {
@@ -1441,7 +1498,7 @@ async function editExpenseItem(expenseId, tripId) {
       photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0;"><span class="badge" style="background:#E53935; color:#fff;">📄 PDF: ${exp.receiptName}</span></div>`;
     } else {
       const src = `data:image/jpeg;base64,${exp.receiptBase64}`;
-      photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0; text-align:center;"><img src="${src}" style="max-width:100%; max-height:160px; border-radius:8px; border:1px solid #ccc; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${src}', 'Чек')"></div>`;
+      photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0; text-align:center;"><img src="${src}" style="max-width:100%; max-height:160px; border-radius:8px; border:1px solid #888; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${src}', 'Чек')"></div>`;
     }
   } else {
     photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0; color:#888; font-size:12px; text-align:center;">Фото не прикреплено</div>`;
@@ -1995,6 +2052,7 @@ function openPhotoModal(src, caption) {
   img.src = src;
   if (cap) cap.innerText = caption || 'Чек';
   modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
 }
 
 function openPdfAttachment(base64, fileName) {
@@ -2023,171 +2081,6 @@ function openPdfAttachment(base64, fileName) {
     }
   } catch (err) {
     showToast("❌ Ошибка при открытии PDF: " + err.message);
-  }
-}
-
-function saveGithubPagesToken() {
-  const val = document.getElementById('githubPagesTokenInput').value.trim();
-  if (!val) {
-    showToast("⚠️ Введите токен с правами repo");
-    return;
-  }
-  localStorage.setItem('github_pages_token', val);
-  showToast("✅ Токен для GitHub Pages сохранен!");
-}
-
-async function deployToGitHubPages() {
-  const token = localStorage.getItem('github_pages_token') || 
-                document.getElementById('githubPagesTokenInput')?.value.trim() ||
-                localStorage.getItem('github_token') || 
-                document.getElementById('githubTokenInput')?.value.trim();
-
-  if (!token) {
-    showToast("⚠️ Пожалуйста, введите и сохраните GitHub Access Token для хостинга!");
-    return;
-  }
-
-  showToast("⏳ Загружаем файлы проекта в GitHub Pages...");
-
-  try {
-    // 1. Проверяем пользователя
-    const userRes = await fetch('https://api.github.com/user', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json'
-      }
-    });
-
-    if (!userRes.ok) {
-      throw new Error(`Ошибка токена (код ${userRes.status}). Убедитесь, что токен имеет права repo.`);
-    }
-
-    const userData = await userRes.json();
-    const username = userData.login;
-    const repoName = 'business-trip-pwa-v2';
-
-    // 2. Проверяем/создаем репозиторий
-    const repoCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
-    });
-
-    if (repoCheck.status === 404) {
-      showToast("🔨 Создаем новый репозиторий на GitHub...");
-      const createRes = await fetch('https://api.github.com/user/repos', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: repoName, description: 'Business Trips PWA v2', auto_init: true, has_pages: true })
-      });
-      if (!createRes.ok) throw new Error(`Не удалось создать репозиторий: ${createRes.status}`);
-    }
-
-    // 3. Загружаем основные файлы приложения в ветку "gh-pages"
-    const filesToUpload = ['index.html', 'style.css', 'app.js', 'db.js', 'reports.js', 'sw.js', 'manifest.json'];
-    
-    for (const filePath of filesToUpload) {
-      try {
-        const fileResp = await fetch(`./${filePath}`);
-        if (!fileResp.ok) continue;
-        const textContent = await fileResp.text();
-        const b64 = btoa(unescape(encodeURIComponent(textContent)));
-
-        const existResp = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${filePath}?ref=gh-pages`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
-        });
-
-        let sha = null;
-        if (existResp.ok) {
-          const existData = await existResp.json();
-          sha = existData.sha;
-        }
-
-        await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${filePath}`, {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: `Deploy ${filePath} to GitHub Pages`,
-            content: b64,
-            branch: 'gh-pages',
-            ...(sha ? { sha } : {})
-          })
-        });
-      } catch (fErr) {
-        console.warn(`Ошибка загрузки файла ${filePath}:`, fErr);
-      }
-    }
-
-    // 4. Включаем GitHub Pages
-    await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: { branch: 'gh-pages', path: '/' } })
-    }).catch(() => {});
-
-    const ghPagesUrl = `https://${username}.github.io/${repoName}/`;
-    localStorage.setItem('gh_pages_url', ghPagesUrl);
-
-    const banner = document.getElementById('ghPagesBanner');
-    if (banner) {
-      banner.style.display = 'block';
-      banner.style.background = '#FFF9E6';
-      banner.style.border = '1px solid #FFE082';
-      banner.style.color = '#B06000';
-      banner.innerHTML = `⏳ <strong>Файлы выгружены на GitHub!</strong><br>` +
-        `Сервер GitHub производит сборку и активацию домена. Пожалуйста, подождите около 30–60 секунд...<br>` +
-        `Ссылка: <a href="${ghPagesUrl}" target="_blank" style="color:#B06000; font-weight:bold; text-decoration:underline;">${ghPagesUrl}</a>` +
-        `<div id="ghPollStatus" style="margin-top:6px; font-weight:bold; font-size:12px;">⏳ Проверка готовности сервера GitHub...</div>`;
-    }
-
-    showToast(`⏳ Файлы выгружены! Ждём активации сервера GitHub Pages...`, 8000);
-
-    // 5. Опрос статуса готовности сервера GitHub Pages каждые 8 секунд
-    let pollAttempts = 0;
-    const pollInterval = setInterval(async () => {
-      pollAttempts++;
-      try {
-        const pagesCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
-        });
-        
-        if (pagesCheck.ok) {
-          const pagesData = await pagesCheck.json();
-          const status = pagesData.status; // 'built' | 'building' | 'errored'
-          const pollEl = document.getElementById('ghPollStatus');
-
-          if (status === 'built') {
-            clearInterval(pollInterval);
-            if (banner) {
-              banner.style.background = '#E6F4EA';
-              banner.style.border = '1px solid #CEEAD6';
-              banner.style.color = '#137333';
-              banner.innerHTML = `🟢 <strong>ГОТОВО! Сайт GitHub Pages официально активирован!</strong><br>` +
-                `Ваша постоянная ссылка: <a href="${ghPagesUrl}" target="_blank" style="color:#137333; font-weight:bold; text-decoration:underline; font-size:14px;">${ghPagesUrl}</a>`;
-            }
-            showToast(`🎉 GitHub Pages готов! Страница доступна по ссылке: ${ghPagesUrl}`, 15000);
-          } else if (pollEl) {
-            pollEl.innerText = `⏳ Сервер GitHub собирает страницу... (попытка ${pollAttempts}, статус: ${status || 'building'})`;
-          }
-        }
-      } catch (pErr) {
-        console.warn('Poll error:', pErr);
-      }
-
-      if (pollAttempts >= 15) {
-        clearInterval(pollInterval);
-        const pollEl = document.getElementById('ghPollStatus');
-        if (pollEl) pollEl.innerText = `ℹ️ Если страница еще не открылась, перейдите по ссылке через полминуты.`;
-      }
-    }, 8000);
-  } catch (err) {
-    const banner = document.getElementById('ghPagesBanner');
-    if (banner) {
-      banner.style.display = 'block';
-      banner.style.background = '#FFEBEE';
-      banner.style.border = '1px solid #EF9A9A';
-      banner.style.color = '#C62828';
-      banner.innerHTML = `❌ <strong>Ошибка публикации:</strong> ${err.message}`;
-    }
-    showToast("❌ Ошибка публикации: " + err.message, 15000);
   }
 }
 
@@ -2233,11 +2126,13 @@ async function openQuickAddModal() {
   quickSelectedFile = null;
 
   modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
 }
 
 function closeQuickAddModal() {
   const modal = document.getElementById('quickAddModal');
   if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 async function previewQuickFile(event) {
