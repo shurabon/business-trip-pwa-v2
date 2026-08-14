@@ -172,7 +172,12 @@
 
         <form id="expenseForm" onsubmit="handleAddExpense(event)">
           <div class="form-group">
-            <label>Выберите командировку</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label style="margin:0;">Выберите командировку</label>
+              <label style="font-size:12px; color:#555; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="showClosedTripsExp" onchange="loadData()"> 🔍 Все включая закрытые
+              </label>
+            </div>
             <select id="expenseTripId" class="form-control" required></select>
           </div>
 
@@ -273,7 +278,12 @@
 
         <form id="paymentForm" onsubmit="handleAddPayment(event)">
           <div class="form-group">
-            <label>Выберите командировку</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label style="margin:0;">Выберите командировку</label>
+              <label style="font-size:12px; color:#555; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="showClosedTripsPay" onchange="loadData()"> 🔍 Все включая закрытые
+              </label>
+            </div>
             <select id="paymentTripId" class="form-control" required></select>
           </div>
 
@@ -382,7 +392,12 @@
         </div>
 
         <div class="form-group" style="margin-bottom: 16px;">
-          <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">Выберите командировку:</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label style="font-size: 13px; font-weight: 600; margin:0;">Выберите командировку:</label>
+            <label style="font-size:12px; color:#555; cursor:pointer; display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="showClosedTripsRep" onchange="loadData()"> 🔍 Все включая закрытые
+            </label>
+          </div>
           <select id="reportTripSelect" class="form-control" style="font-weight: 500;"></select>
         </div>
 
@@ -404,6 +419,23 @@
     <!-- TAB 6: SETTINGS & DICTIONARIES & YANDEX SYNC MANAGEMENT -->
     <div id="settingsTab" class="tab-content">
       
+      <!-- КАРТОЧКА: ХОСТИНГ НА GITHUB PAGES -->
+      <div class="card" style="border: 2px solid #2EA44F; background: #F6FFED;">
+        <div class="card-title" style="color: #137333;">
+          <span class="material-symbols-outlined">language</span> Персональный хостинг на GitHub Pages
+        </div>
+
+        <p style="font-size: 13px; color: #333; margin-bottom: 12px;">
+          Размещение приложения на вашем личном домене <code>https://&lt;ваш-логин&gt;.github.io/business-trip-pwa-v2/</code>. Гарантированно открывается на всех рабочих ПК и не блокируется сетевыми антивирусами.
+        </p>
+
+        <div id="ghPagesBanner" style="display:none; background:#E6F4EA; border:1px solid #CEEAD6; padding:10px 14px; border-radius:10px; margin-bottom:12px; font-size:13px;"></div>
+
+        <button type="button" class="btn" style="background:#2EA44F; border:none; width:100%; padding:12px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="deployToGitHubPages()">
+          <span class="material-symbols-outlined">rocket_launch</span> 🚀 Опубликовать на GitHub Pages
+        </button>
+      </div>
+
       <!-- КАРТОЧКА: СИНХРОНИЗАЦИЯ ЧЕРЕЗ GITHUB GIST -->
       <div class="card" style="border: 2px solid var(--md-sys-color-primary-container);">
         <div class="card-title">

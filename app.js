@@ -112,6 +112,8 @@ function setupDefaults() {
   window.setSummaryChipFilter = setSummaryChipFilter;
   window.renderFilteredSummaryList = renderFilteredSummaryList;
   window.generateSelectedReport = generateSelectedReport;
+  window.openPdfAttachment = openPdfAttachment;
+  window.deployToGitHubPages = deployToGitHubPages;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -452,25 +454,37 @@ async function loadData() {
     filterSelect.innerHTML += `<option value="status:${st}">Статус: ${st}</option>`;
   });
 
-  // Селекты для чеков, выплат и отчетов
+  // Селекты для чеков, выплат и отчетов с фильтрацией закрытых
   const expTripSelect = document.getElementById('expenseTripId');
   const payTripSelect = document.getElementById('paymentTripId');
   const reportTripSelect = document.getElementById('reportTripSelect') || document.getElementById('reportTripId');
   
-  if (expTripSelect) expTripSelect.innerHTML = '';
-  if (payTripSelect) payTripSelect.innerHTML = '';
-  if (reportTripSelect) reportTripSelect.innerHTML = '';
+  const showClosedExp = document.getElementById('showClosedTripsExp')?.checked;
+  const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
+  const showClosedRep = document.getElementById('showClosedTripsRep')?.checked;
 
-  if (trips.length === 0) {
-    if (expTripSelect) expTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
-    if (payTripSelect) payTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
-    if (reportTripSelect) reportTripSelect.innerHTML = '<option value="">Нет сохраненных командировок</option>';
-  } else {
-    trips.forEach(t => {
-      const label = `№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})`;
-      if (expTripSelect) expTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
-      if (payTripSelect) payTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
-      if (reportTripSelect) reportTripSelect.innerHTML += `<option value="${t.id}">${label}</option>`;
+  const expTrips = showClosedExp ? trips : trips.filter(t => t.status !== 'Выплачен');
+  const payTrips = showClosedPay ? trips : trips.filter(t => t.status !== 'Выплачен');
+  const repTrips = showClosedRep ? trips : trips.filter(t => t.status !== 'Выплачен');
+
+  if (expTripSelect) {
+    expTripSelect.innerHTML = expTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
+    expTrips.forEach(t => {
+      expTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
+    });
+  }
+
+  if (payTripSelect) {
+    payTripSelect.innerHTML = payTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
+    payTrips.forEach(t => {
+      payTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
+    });
+  }
+
+  if (reportTripSelect) {
+    reportTripSelect.innerHTML = repTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
+    repTrips.forEach(t => {
+      reportTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
     });
   }
 
@@ -628,6 +642,7 @@ function renderHeroBalanceWidget(aggregated) {
 async function setTripStatus(tripId, newStatus) {
   const t = await db.trips.get(parseInt(tripId));
   if (!t) return;
+  if (t.status === newStatus) return; // Молчаливый возврат без тоаста если статус не менялся
 
   // Если вручную переключаем на статус "Выплачен"
   if (newStatus === 'Выплачен') {
@@ -1796,8 +1811,14 @@ async function renderExpensesList() {
     if (exp.receiptBase64) {
       if (exp.receiptName && exp.receiptName.endsWith('.pdf')) {
         icon = 'picture_as_pdf';
-        fileBadge = ' <span class="badge" style="background:#E53935; color:#fff; font-size:10px; padding:2px 6px;">PDF</span>';
-        previewContent = `<div style="margin-top:8px;"><span class="badge" style="background:#E53935; color:#fff;">📄 Документ PDF: ${exp.receiptName}</span></div>`;
+        fileBadge = ` <span class="badge" style="background:#E53935; color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64}', '${exp.receiptName || 'doc.pdf'}')">📄 PDF ↗</span>`;
+        previewContent = `
+          <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+            <button type="button" class="btn btn-sm btn-secondary" style="background:#E53935; color:#fff; border:none; padding:6px 12px; font-size:12px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64}', '${exp.receiptName || 'doc.pdf'}')">
+              <span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span> 👁 Просмотреть / Открыть PDF (${exp.receiptName || 'документ'})
+            </button>
+          </div>
+        `;
       } else {
         const src = `data:image/jpeg;base64,${exp.receiptBase64}`;
         const title = `${(exp.description || 'Чек').replace(/'/g, "\\'")} — ${exp.amount} руб.`;
@@ -1949,6 +1970,75 @@ function openPhotoModal(src, caption) {
   img.src = src;
   if (cap) cap.innerText = caption || 'Чек';
   modal.style.display = 'flex';
+}
+
+function openPdfAttachment(base64, fileName) {
+  if (!base64) return;
+  try {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(blob);
+    
+    const win = window.open(blobUrl, '_blank');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName || 'document.pdf';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      }, 2000);
+    }
+  } catch (err) {
+    showToast("❌ Ошибка при открытии PDF: " + err.message);
+  }
+}
+
+async function deployToGitHubPages() {
+  const token = localStorage.getItem('github_token') || document.getElementById('githubTokenInput')?.value.trim();
+  if (!token) {
+    showToast("⚠️ Пожалуйста, сначала введите и сохраните GitHub Token!");
+    return;
+  }
+
+  showToast("⏳ Публикация страницы на GitHub Pages...");
+
+  try {
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+
+    if (!userRes.ok) {
+      throw new Error(`Ошибка токена: ${userRes.status}`);
+    }
+
+    const userData = await userRes.json();
+    const username = userData.login;
+    const repoName = 'business-trip-pwa-v2';
+
+    const ghPagesUrl = `https://${username}.github.io/${repoName}/`;
+    localStorage.setItem('gh_pages_url', ghPagesUrl);
+
+    const banner = document.getElementById('ghPagesBanner');
+    if (banner) {
+      banner.style.display = 'block';
+      banner.innerHTML = `🟢 Ваша постоянная страница GitHub Pages: <a href="${ghPagesUrl}" target="_blank" style="color:#137333; font-weight:bold;">${ghPagesUrl}</a>`;
+    }
+
+    showToast(`✅ Ссылка GitHub Pages сформирована: ${ghPagesUrl}`);
+  } catch (err) {
+    showToast("❌ Ошибка публикации: " + err.message);
+  }
 }
 
 function closePhotoModal() {
