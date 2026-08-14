@@ -1827,6 +1827,17 @@ async function downloadPDFReport() {
 
 function setupServiceWorker() {
   if ('serviceWorker' in navigator) {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let r of registrations) r.unregister();
+      });
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          for (let name of names) caches.delete(name);
+        });
+      }
+      return;
+    }
     navigator.serviceWorker.register('/sw.js')
       .then(() => {})
       .catch(() => {});
