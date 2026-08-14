@@ -1,5 +1,5 @@
 :root {
-  --font-family: 'Outfit', 'Inter', sans-serif;
+  --font-family: 'Roboto', sans-serif;
   --md-sys-color-primary: #1055CC;
   --md-sys-color-on-primary: #FFFFFF;
   --md-sys-color-primary-container: #DCE3FF;
@@ -185,6 +185,11 @@ header h1 {
   flex: 1;
 }
 
+#autoFields {
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+}
+
 /* File Dropzone */
 .file-dropzone {
   border: 2px dashed var(--md-sys-color-outline);
@@ -237,6 +242,11 @@ header h1 {
 .btn:active {
   opacity: 0.85;
   transform: scale(0.98);
+}
+
+.btn:focus-visible, .btn-secondary:focus-visible, .nav-tab:focus-visible, .header-btn:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
 }
 
 /* Info Badge */
@@ -389,6 +399,7 @@ header h1 {
     align-items: center;
     justify-content: space-around;
     padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .mobile-nav-item {
@@ -843,6 +854,16 @@ header h1 {
     padding: 20px 16px !important;
     box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.25) !important;
     animation: slideUp 0.3s cubic-bezier(0.2, 0, 0, 1) forwards !important;
+  }
+
+  .edit-bottom-sheet::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: #CBD5E1;
+    border-radius: 4px;
+    margin: 8px auto 12px;
   }
 
   /* 2-ROW GRID FOR STEPPER ON MOBILE (2 x 2) */
