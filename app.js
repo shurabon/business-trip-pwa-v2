@@ -2129,12 +2129,23 @@ async function deployToGitHubPages() {
     const banner = document.getElementById('ghPagesBanner');
     if (banner) {
       banner.style.display = 'block';
-      banner.innerHTML = `🟢 Ваша постоянная страница GitHub Pages: <a href="${ghPagesUrl}" target="_blank" style="color:#137333; font-weight:bold;">${ghPagesUrl}</a><div style="margin-top:4px; font-size:11px; color:#555;">(Страница станет доступна на сервере GitHub через 30-60 секунд после развертывания)</div>`;
+      banner.style.background = '#E6F4EA';
+      banner.style.border = '1px solid #CEEAD6';
+      banner.style.color = '#137333';
+      banner.innerHTML = `🟢 <strong>Файлы приложения успешно выгружены!</strong><br>Ваша постоянная ссылка GitHub Pages: <a href="${ghPagesUrl}" target="_blank" style="color:#137333; font-weight:bold; text-decoration:underline;">${ghPagesUrl}</a><div style="margin-top:6px; font-size:11px; color:#555;">(Примечание: GitHub Pages требуется от 30 до 60 секунд для первичного запуска страницы на сервере)</div>`;
     }
 
-    showToast(`✅ Файлы выгружены! GitHub Pages разворачивает сайт: ${ghPagesUrl}`, 12000);
+    showToast(`✅ Файлы выгружены! Ссылка: ${ghPagesUrl}`, 12000);
   } catch (err) {
-    showToast("❌ Ошибка публикации: " + err.message);
+    const banner = document.getElementById('ghPagesBanner');
+    if (banner) {
+      banner.style.display = 'block';
+      banner.style.background = '#FFEBEE';
+      banner.style.border = '1px solid #EF9A9A';
+      banner.style.color = '#C62828';
+      banner.innerHTML = `❌ <strong>Ошибка публикации:</strong> ${err.message}`;
+    }
+    showToast("❌ Ошибка публикации: " + err.message, 15000);
   }
 }
 
