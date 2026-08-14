@@ -722,42 +722,14 @@ function renderHeroBalanceWidget(aggregated) {
 }
 
 async function setTripStatus(tripId, newStatus) {
+  if (newStatus === 'не подготовлен' || newStatus === 'Выплачен') {
+    showToast("ℹ️ Статусы 'Не подготовлен' и 'Выплачен' устанавливаются автоматически");
+    return;
+  }
+
   const t = await db.trips.get(parseInt(tripId));
   if (!t) return;
-  if (t.status === newStatus) return; // Молчаливый возврат без тоаста если статус не менялся
-
-  // Если вручную переключаем на статус "Выплачен"
-  if (newStatus === 'Выплачен') {
-    const aggregated = await getAggregatedSummary();
-    const summary = aggregated.tripSummaries.find(s => String(s.trip.id) === String(tripId));
-    
-    // Оставшийся неоплаченным долг сотруднику
-    const remainingDebt = summary ? (summary.totalOwed - summary.paymentsTotal) : 0;
-
-    if (remainingDebt > 0) {
-      const confirmAutoPay = confirm(
-        `Поездке №${t.appNo || t.id} требуется выплата на сумму ${remainingDebt.toLocaleString('ru-RU')} ₽.\n\n` +
-        `Нажмите OK, чтобы встроить полную выплату и закрыть поездку.\n` +
-        `При нажатии Отмена статус "Выплачен" установлен НЕ БУДЕТ, так как за бухгалтерией числится долг.`
-      );
-
-      if (confirmAutoPay) {
-        const todayRu = formatDateToRu(new Date().toISOString());
-        await db.payments.add({
-          tripId: String(t.id),
-          date: todayRu,
-          amount: remainingDebt,
-          note: 'Окончательный расчет по поездки',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-        showToast(`✅ Внесена выплата ${remainingDebt.toLocaleString('ru-RU')} ₽!`);
-      } else {
-        showToast("ℹ️ Статус не изменён: для статуса 'Выплачен' требуется погашение долга.");
-        return;
-      }
-    }
-  }
+  if (t.status === newStatus) return; // Молчаливый возврат если статус не менялся
 
   await db.trips.update(parseInt(tripId), {
     status: newStatus,
@@ -778,25 +750,25 @@ function renderStepperHtml(t) {
 
   return `
     <div class="trip-stepper" onclick="event.stopPropagation();">
-      <div class="stepper-step ${isStep1Active ? 'active' : ''}" title="Черновик / Сбор чеков" onclick="setTripStatus(${t.id}, 'не подготовлен')">
+      <div class="stepper-step step-disabled ${isStep1Active ? 'active' : ''}" title="1. Заявка создана (автоматически)" style="cursor: default;">
         <div class="stepper-dot">1</div>
-        <span>Не подготовлен</span>
+        <span>не подготовлен</span>
       </div>
       <div class="stepper-line ${isStep2Active || isStep3Active || isStep4Active ? 'active' : ''}"></div>
       
-      <div class="stepper-step ${isStep2Active ? 'active' : ''}" title="Готов к отправке" onclick="setTripStatus(${t.id}, 'Подготовлен')">
+      <div class="stepper-step ${isStep2Active ? 'active' : ''}" title="2. Переключить на: Подготовлен" onclick="setTripStatus(${t.id}, 'Подготовлен')">
         <div class="stepper-dot">2</div>
         <span>Подготовлен</span>
       </div>
       <div class="stepper-line ${isStep3Active || isStep4Active ? 'active' : ''}"></div>
       
-      <div class="stepper-step ${isStep3Active ? 'active' : ''}" title="Передан в бухгалтерию" onclick="setTripStatus(${t.id}, 'Отправлен')">
+      <div class="stepper-step ${isStep3Active ? 'active' : ''}" title="3. Переключить на: Отправлен" onclick="setTripStatus(${t.id}, 'Отправлен')">
         <div class="stepper-dot">3</div>
         <span>Отправлен</span>
       </div>
       <div class="stepper-line ${isStep4Active ? 'active' : ''}"></div>
       
-      <div class="stepper-step step-paid ${isStep4Active ? 'active' : ''}" title="Выплаты получены / Расчет закрыт" onclick="setTripStatus(${t.id}, 'Выплачен')">
+      <div class="stepper-step step-paid step-disabled ${isStep4Active ? 'active' : ''}" title="4. Выплачен (автоматически при полном расчете)" style="cursor: default;">
         <div class="stepper-dot">4</div>
         <span>Выплачен</span>
       </div>
@@ -1212,7 +1184,6 @@ async function transformCardToEdit(tripId) {
   const dicts = await db.dictionaries.toArray();
   const transportList = dicts.filter(d => d.category === 'transport').map(d => d.value);
   const workList = dicts.filter(d => d.category === 'workType').map(d => d.value);
-  const statusList = dicts.filter(d => d.category === 'status').map(d => d.value);
 
   let transportHtml = '';
   transportList.forEach(tr => {
@@ -1222,11 +1193,6 @@ async function transformCardToEdit(tripId) {
   let workHtml = '';
   workList.forEach(w => {
     workHtml += `<option value="${w}" ${w === t.workType ? 'selected' : ''}>${w}</option>`;
-  });
-
-  let statusHtml = '';
-  statusList.forEach(st => {
-    statusHtml += `<option value="${st}" ${st === t.status ? 'selected' : ''}>${st}</option>`;
   });
 
   const startRu = formatDateToRu(t.startDate);
@@ -1355,13 +1321,6 @@ async function transformCardToEdit(tripId) {
               <input type="number" id="inlineOdoFinish-${t.id}" class="form-control" value="${t.odoFinish || 0}" step="1">
             </div>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label>Статус командировки</label>
-          <select id="inlineStatus-${t.id}" class="form-control">
-            ${statusHtml}
-          </select>
         </div>
 
         <div class="form-group">
@@ -1764,7 +1723,6 @@ async function handleInlineUpdateTrip(event, tripId) {
     finishDate: formatDateToRu(document.getElementById(`inlineFinishDate-${tripId}`).value),
     odoStart: parseFloat(document.getElementById(`inlineOdoStart-${tripId}`).value) || 0,
     odoFinish: parseFloat(document.getElementById(`inlineOdoFinish-${tripId}`).value) || 0,
-    status: document.getElementById(`inlineStatus-${tripId}`).value,
     note: document.getElementById(`inlineNote-${tripId}`).value,
     updatedAt: new Date().toISOString()
   });

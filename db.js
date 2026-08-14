@@ -245,9 +245,7 @@ export async function seedInitialData() {
       { category: 'workType', value: 'Техническое обслуживание' },
       { category: 'workType', value: 'Диагностика и ремонт' },
       { category: 'status', value: 'не подготовлен' },
-      { category: 'status', value: 'В процессе' },
-      { category: 'status', value: 'Завершена' },
-      { category: 'status', value: 'Отчитан' },
+      { category: 'status', value: 'Подготовлен' },
       { category: 'status', value: 'Отправлен' },
       { category: 'status', value: 'Выплачен' }
     ]);
