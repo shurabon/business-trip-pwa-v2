@@ -114,6 +114,7 @@ function setupDefaults() {
   window.generateSelectedReport = generateSelectedReport;
   window.openPdfAttachment = openPdfAttachment;
   window.deployToGitHubPages = deployToGitHubPages;
+  window.saveGithubPagesToken = saveGithubPagesToken;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -2001,14 +2002,28 @@ function openPdfAttachment(base64, fileName) {
   }
 }
 
+function saveGithubPagesToken() {
+  const val = document.getElementById('githubPagesTokenInput').value.trim();
+  if (!val) {
+    showToast("⚠️ Введите токен с правами repo");
+    return;
+  }
+  localStorage.setItem('github_pages_token', val);
+  showToast("✅ Токен для GitHub Pages сохранен!");
+}
+
 async function deployToGitHubPages() {
-  const token = localStorage.getItem('github_token') || document.getElementById('githubTokenInput')?.value.trim();
+  const token = localStorage.getItem('github_pages_token') || 
+                document.getElementById('githubPagesTokenInput')?.value.trim() ||
+                localStorage.getItem('github_token') || 
+                document.getElementById('githubTokenInput')?.value.trim();
+
   if (!token) {
-    showToast("⚠️ Пожалуйста, сначала введите и сохраните GitHub Token!");
+    showToast("⚠️ Пожалуйста, введите и сохраните GitHub Access Token для хостинга!");
     return;
   }
 
-  showToast("⏳ Публикация страницы на GitHub Pages...");
+  showToast("⏳ Проверка токена и публикация на GitHub Pages...");
 
   try {
     const userRes = await fetch('https://api.github.com/user', {
