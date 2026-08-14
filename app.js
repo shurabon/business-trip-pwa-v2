@@ -502,7 +502,8 @@ async function loadData() {
   const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
   const showClosedRep = document.getElementById('showClosedTripsRep')?.checked;
 
-  const expTrips = showClosedExp ? trips : trips.filter(t => t.status !== 'Выплачен');
+  const isTripInWork = t => (t.status === 'не подготовлен' || t.status === 'Подготовлен' || t.status === 'В процессе' || !t.status);
+  const expTrips = showClosedExp ? trips : trips.filter(isTripInWork);
   const payTrips = showClosedPay ? trips : trips.filter(t => t.status !== 'Выплачен');
   const repTrips = showClosedRep ? trips : trips.filter(t => t.status !== 'Выплачен');
 
@@ -546,7 +547,8 @@ async function refreshTripSelects() {
   const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
   const showClosedRep = document.getElementById('showClosedTripsRep')?.checked;
 
-  const expTrips = showClosedExp ? trips : trips.filter(t => t.status !== 'Выплачен');
+  const isTripInWork = t => (t.status === 'не подготовлен' || t.status === 'Подготовлен' || t.status === 'В процессе' || !t.status);
+  const expTrips = showClosedExp ? trips : trips.filter(isTripInWork);
   const payTrips = showClosedPay ? trips : trips.filter(t => t.status !== 'Выплачен');
   const repTrips = showClosedRep ? trips : trips.filter(t => t.status !== 'Выплачен');
 
