@@ -2047,9 +2047,10 @@ async function deployToGitHubPages() {
     return;
   }
 
-  showToast("⏳ Проверка токена и публикация на GitHub Pages...");
+  showToast("⏳ Загружаем файлы проекта в GitHub Pages...");
 
   try {
+    // 1. Проверяем пользователя
     const userRes = await fetch('https://api.github.com/user', {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -2058,12 +2059,69 @@ async function deployToGitHubPages() {
     });
 
     if (!userRes.ok) {
-      throw new Error(`Ошибка токена: ${userRes.status}`);
+      throw new Error(`Ошибка токена (код ${userRes.status}). Убедитесь, что токен имеет права repo.`);
     }
 
     const userData = await userRes.json();
     const username = userData.login;
     const repoName = 'business-trip-pwa-v2';
+
+    // 2. Проверяем/создаем репозиторий
+    const repoCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+    });
+
+    if (repoCheck.status === 404) {
+      showToast("🔨 Создаем новый репозиторий на GitHub...");
+      const createRes = await fetch('https://api.github.com/user/repos', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: repoName, description: 'Business Trips PWA v2', auto_init: true, has_pages: true })
+      });
+      if (!createRes.ok) throw new Error(`Не удалось создать репозиторий: ${createRes.status}`);
+    }
+
+    // 3. Загружаем основные файлы приложения в ветку "gh-pages"
+    const filesToUpload = ['index.html', 'style.css', 'app.js', 'db.js', 'reports.js', 'sw.js', 'manifest.json'];
+    
+    for (const filePath of filesToUpload) {
+      try {
+        const fileResp = await fetch(`./${filePath}`);
+        if (!fileResp.ok) continue;
+        const textContent = await fileResp.text();
+        const b64 = btoa(unescape(encodeURIComponent(textContent)));
+
+        const existResp = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${filePath}?ref=gh-pages`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+        });
+
+        let sha = null;
+        if (existResp.ok) {
+          const existData = await existResp.json();
+          sha = existData.sha;
+        }
+
+        await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${filePath}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `Deploy ${filePath} to GitHub Pages`,
+            content: b64,
+            branch: 'gh-pages',
+            ...(sha ? { sha } : {})
+          })
+        });
+      } catch (fErr) {
+        console.warn(`Ошибка загрузки файла ${filePath}:`, fErr);
+      }
+    }
+
+    // 4. Включаем GitHub Pages
+    await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: { branch: 'gh-pages', path: '/' } })
+    }).catch(() => {});
 
     const ghPagesUrl = `https://${username}.github.io/${repoName}/`;
     localStorage.setItem('gh_pages_url', ghPagesUrl);
@@ -2071,10 +2129,10 @@ async function deployToGitHubPages() {
     const banner = document.getElementById('ghPagesBanner');
     if (banner) {
       banner.style.display = 'block';
-      banner.innerHTML = `🟢 Ваша постоянная страница GitHub Pages: <a href="${ghPagesUrl}" target="_blank" style="color:#137333; font-weight:bold;">${ghPagesUrl}</a>`;
+      banner.innerHTML = `🟢 Ваша постоянная страница GitHub Pages: <a href="${ghPagesUrl}" target="_blank" style="color:#137333; font-weight:bold;">${ghPagesUrl}</a><div style="margin-top:4px; font-size:11px; color:#555;">(Страница станет доступна на сервере GitHub через 30-60 секунд после развертывания)</div>`;
     }
 
-    showToast(`✅ Ссылка GitHub Pages сформирована: ${ghPagesUrl}`);
+    showToast(`✅ Файлы выгружены! GitHub Pages разворачивает сайт: ${ghPagesUrl}`, 12000);
   } catch (err) {
     showToast("❌ Ошибка публикации: " + err.message);
   }
