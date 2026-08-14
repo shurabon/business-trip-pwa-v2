@@ -49,6 +49,19 @@ function setupDefaults() {
     document.getElementById('syncStatusBadge').innerHTML = `🟢 GitHub токен подключен (${masked})`;
   }
 
+  // Загружаем GitHub Pages токен из localStorage
+  const savedPagesToken = localStorage.getItem('github_pages_token');
+  if (savedPagesToken && document.getElementById('githubPagesTokenInput')) {
+    document.getElementById('githubPagesTokenInput').value = savedPagesToken;
+  }
+
+  const savedPagesUrl = localStorage.getItem('gh_pages_url');
+  if (savedPagesUrl && document.getElementById('ghPagesBanner')) {
+    const banner = document.getElementById('ghPagesBanner');
+    banner.style.display = 'block';
+    banner.innerHTML = `🟢 Ваша постоянная страница GitHub Pages: <a href="${savedPagesUrl}" target="_blank" style="color:#137333; font-weight:bold;">${savedPagesUrl}</a>`;
+  }
+
   // Загружаем Gist ID из localStorage
   const savedGistId = localStorage.getItem('github_gist_id');
   if (savedGistId) {
@@ -196,11 +209,22 @@ function saveGithubGistId() {
   showToast("✅ Gist ID сохранен! Теперь нажмите «Синхронизировать»");
 }
 
-function showToast(msg) {
+function showToast(msg, duration) {
   const t = document.getElementById('toast');
+  if (!t) return;
   t.innerText = msg;
   t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 3500);
+  
+  const timeoutMs = duration || (msg.includes('❌') || msg.includes('⚠️') ? 12000 : 4000);
+  
+  if (window._toastTimer) clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => {
+    t.style.display = 'none';
+  }, timeoutMs);
+
+  t.onclick = () => {
+    t.style.display = 'none';
+  };
 }
 
 function switchTab(tabId) {
