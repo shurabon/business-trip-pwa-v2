@@ -2129,13 +2129,55 @@ async function deployToGitHubPages() {
     const banner = document.getElementById('ghPagesBanner');
     if (banner) {
       banner.style.display = 'block';
-      banner.style.background = '#E6F4EA';
-      banner.style.border = '1px solid #CEEAD6';
-      banner.style.color = '#137333';
-      banner.innerHTML = `🟢 <strong>Файлы приложения успешно выгружены!</strong><br>Ваша постоянная ссылка GitHub Pages: <a href="${ghPagesUrl}" target="_blank" style="color:#137333; font-weight:bold; text-decoration:underline;">${ghPagesUrl}</a><div style="margin-top:6px; font-size:11px; color:#555;">(Примечание: GitHub Pages требуется от 30 до 60 секунд для первичного запуска страницы на сервере)</div>`;
+      banner.style.background = '#FFF9E6';
+      banner.style.border = '1px solid #FFE082';
+      banner.style.color = '#B06000';
+      banner.innerHTML = `⏳ <strong>Файлы выгружены на GitHub!</strong><br>` +
+        `Сервер GitHub производит сборку и активацию домена. Пожалуйста, подождите около 30–60 секунд...<br>` +
+        `Ссылка: <a href="${ghPagesUrl}" target="_blank" style="color:#B06000; font-weight:bold; text-decoration:underline;">${ghPagesUrl}</a>` +
+        `<div id="ghPollStatus" style="margin-top:6px; font-weight:bold; font-size:12px;">⏳ Проверка готовности сервера GitHub...</div>`;
     }
 
-    showToast(`✅ Файлы выгружены! Ссылка: ${ghPagesUrl}`, 12000);
+    showToast(`⏳ Файлы выгружены! Ждём активации сервера GitHub Pages...`, 8000);
+
+    // 5. Опрос статуса готовности сервера GitHub Pages каждые 8 секунд
+    let pollAttempts = 0;
+    const pollInterval = setInterval(async () => {
+      pollAttempts++;
+      try {
+        const pagesCheck = await fetch(`https://api.github.com/repos/${username}/${repoName}/pages`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+        });
+        
+        if (pagesCheck.ok) {
+          const pagesData = await pagesCheck.json();
+          const status = pagesData.status; // 'built' | 'building' | 'errored'
+          const pollEl = document.getElementById('ghPollStatus');
+
+          if (status === 'built') {
+            clearInterval(pollInterval);
+            if (banner) {
+              banner.style.background = '#E6F4EA';
+              banner.style.border = '1px solid #CEEAD6';
+              banner.style.color = '#137333';
+              banner.innerHTML = `🟢 <strong>ГОТОВО! Сайт GitHub Pages официально активирован!</strong><br>` +
+                `Ваша постоянная ссылка: <a href="${ghPagesUrl}" target="_blank" style="color:#137333; font-weight:bold; text-decoration:underline; font-size:14px;">${ghPagesUrl}</a>`;
+            }
+            showToast(`🎉 GitHub Pages готов! Страница доступна по ссылке: ${ghPagesUrl}`, 15000);
+          } else if (pollEl) {
+            pollEl.innerText = `⏳ Сервер GitHub собирает страницу... (попытка ${pollAttempts}, статус: ${status || 'building'})`;
+          }
+        }
+      } catch (pErr) {
+        console.warn('Poll error:', pErr);
+      }
+
+      if (pollAttempts >= 15) {
+        clearInterval(pollInterval);
+        const pollEl = document.getElementById('ghPollStatus');
+        if (pollEl) pollEl.innerText = `ℹ️ Если страница еще не открылась, перейдите по ссылке через полминуты.`;
+      }
+    }, 8000);
   } catch (err) {
     const banner = document.getElementById('ghPagesBanner');
     if (banner) {
