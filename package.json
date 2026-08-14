@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0 --port 3001",
     "build": "vite build",
     "preview": "vite preview --port 3001",
-    "deploy": "npm run build && npx surge ./dist btrips-app-v2.surge.sh"
+    "deploy": "npm run build && npx -y gh-pages -d dist"
   },
   "dependencies": {
     "dexie": "^4.0.10",
