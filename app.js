@@ -502,7 +502,10 @@ async function loadData() {
   const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
   const showClosedRep = document.getElementById('showClosedTripsRep')?.checked;
 
-  const isTripInWork = t => (t.status === 'не подготовлен' || t.status === 'Подготовлен' || t.status === 'В процессе' || !t.status);
+  const isTripInWork = t => {
+    const st = String(t.status || '').trim();
+    return st !== 'Отправлен' && st !== 'Выплачен' && st !== 'Отчитан' && st !== 'Завершена';
+  };
   const expTrips = showClosedExp ? trips : trips.filter(isTripInWork);
   const payTrips = showClosedPay ? trips : trips.filter(t => t.status !== 'Выплачен');
   const repTrips = showClosedRep ? trips : trips.filter(t => t.status !== 'Выплачен');
@@ -547,7 +550,10 @@ async function refreshTripSelects() {
   const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
   const showClosedRep = document.getElementById('showClosedTripsRep')?.checked;
 
-  const isTripInWork = t => (t.status === 'не подготовлен' || t.status === 'Подготовлен' || t.status === 'В процессе' || !t.status);
+  const isTripInWork = t => {
+    const st = String(t.status || '').trim();
+    return st !== 'Отправлен' && st !== 'Выплачен' && st !== 'Отчитан' && st !== 'Завершена';
+  };
   const expTrips = showClosedExp ? trips : trips.filter(isTripInWork);
   const payTrips = showClosedPay ? trips : trips.filter(t => t.status !== 'Выплачен');
   const repTrips = showClosedRep ? trips : trips.filter(t => t.status !== 'Выплачен');
@@ -2077,15 +2083,20 @@ async function openQuickAddModal() {
   if (!modal || !tripSelect) return;
 
   const trips = await db.trips.toArray();
+  const isTripInWork = t => {
+    const st = String(t.status || '').trim();
+    return st !== 'Отправлен' && st !== 'Выплачен' && st !== 'Отчитан' && st !== 'Завершена';
+  };
+  const activeTrips = trips.filter(isTripInWork);
   tripSelect.innerHTML = '';
 
-  if (trips.length === 0) {
-    tripSelect.innerHTML = '<option value="">Сначала создайте командировку</option>';
+  if (activeTrips.length === 0) {
+    tripSelect.innerHTML = '<option value="">(Нет активных командировок в работе)</option>';
   } else {
-    trips.reverse().forEach(t => {
+    activeTrips.reverse().forEach(t => {
       const opt = document.createElement('option');
       opt.value = t.id;
-      opt.innerText = `№${t.appNo || t.id} — ${t.client || ''} (${t.target || ''})`;
+      opt.innerText = `№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})`;
       tripSelect.appendChild(opt);
     });
   }
