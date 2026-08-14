@@ -493,55 +493,20 @@ async function loadData() {
     filterSelect.innerHTML += `<option value="status:${st}">Статус: ${st}</option>`;
   });
 
-  // Селекты для чеков, выплат и отчетов с фильтрацией закрытых
-  const expTripSelect = document.getElementById('expenseTripId');
-  const payTripSelect = document.getElementById('paymentTripId');
-  const reportTripSelect = document.getElementById('reportTripSelect') || document.getElementById('reportTripId');
-  
-  const showClosedExp = document.getElementById('showClosedTripsExp')?.checked;
-  const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
-  const showClosedRep = document.getElementById('showClosedTripsRep')?.checked;
-
-  const isTripInWork = t => {
-    const st = String(t.status || '').trim();
-    return st !== 'Отправлен' && st !== 'Выплачен' && st !== 'Отчитан' && st !== 'Завершена';
-  };
-  const expTrips = showClosedExp ? trips : trips.filter(isTripInWork);
-  const payTrips = showClosedPay ? trips : trips.filter(t => t.status !== 'Выплачен');
-  const repTrips = showClosedRep ? trips : trips.filter(t => t.status !== 'Выплачен');
-
-  if (expTripSelect) {
-    expTripSelect.innerHTML = expTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
-    expTrips.forEach(t => {
-      expTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
-    });
-  }
-
-  if (payTripSelect) {
-    payTripSelect.innerHTML = payTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
-    payTrips.forEach(t => {
-      payTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
-    });
-  }
-
-  if (reportTripSelect) {
-    reportTripSelect.innerHTML = repTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
-    repTrips.forEach(t => {
-      reportTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
-    });
-  }
-
   const aggregated = await getAggregatedSummary();
   renderHeroBalanceWidget(aggregated);
   renderFilteredSummaryList(aggregated);
   renderDictionariesManager(dicts);
+  await refreshTripSelects();
   await renderExpensesList();
   await renderPaymentsList();
 }
 
 
 async function refreshTripSelects() {
-  const trips = await db.trips.toArray();
+  const aggregated = await getAggregatedSummary();
+  const trips = aggregated.tripSummaries;
+
   const expTripSelect = document.getElementById('expenseTripId');
   const payTripSelect = document.getElementById('paymentTripId');
   const reportTripSelect = document.getElementById('reportTripSelect') || document.getElementById('reportTripId');
@@ -550,18 +515,32 @@ async function refreshTripSelects() {
   const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
   const showClosedRep = document.getElementById('showClosedTripsRep')?.checked;
 
-  const isTripInWork = t => {
-    const st = String(t.status || '').trim();
-    return st !== 'Отправлен' && st !== 'Выплачен' && st !== 'Отчитан' && st !== 'Завершена';
+  // Поездка в работе для чеков: статус НЕ Отправлен/Выплачен/Отчитан и финансовый расчет НЕ закрыт полностью
+  const isTripInWork = s => {
+    const t = s.trip;
+    const st = String(t.status || 'не подготовлен').trim();
+    if (st === 'Отправлен' || st === 'Выплачен' || st === 'Отчитан' || st === 'Завершена') return false;
+    if (s.totalOwed > 0 && s.paymentsTotal >= s.totalOwed) return false;
+    return true;
   };
-  const expTrips = showClosedExp ? trips : trips.filter(isTripInWork);
-  const payTrips = showClosedPay ? trips : trips.filter(t => t.status !== 'Выплачен');
-  const repTrips = showClosedRep ? trips : trips.filter(t => t.status !== 'Выплачен');
+
+  const isTripOpenForPayment = s => {
+    const t = s.trip;
+    const st = String(t.status || 'не подготовлен').trim();
+    if (st === 'Выплачен') return false;
+    if (s.totalOwed > 0 && s.paymentsTotal >= s.totalOwed) return false;
+    return true;
+  };
+
+  const expSummaries = showClosedExp ? trips : trips.filter(isTripInWork);
+  const paySummaries = showClosedPay ? trips : trips.filter(isTripOpenForPayment);
+  const repSummaries = showClosedRep ? trips : trips.filter(isTripOpenForPayment);
 
   if (expTripSelect) {
     const currentExpVal = expTripSelect.value;
-    expTripSelect.innerHTML = expTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
-    expTrips.forEach(t => {
+    expTripSelect.innerHTML = expSummaries.length === 0 ? '<option value="">(Нет активных командировок в работе)</option>' : '';
+    expSummaries.forEach(s => {
+      const t = s.trip;
       expTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
     });
     if (currentExpVal) expTripSelect.value = currentExpVal;
@@ -569,8 +548,9 @@ async function refreshTripSelects() {
 
   if (payTripSelect) {
     const currentPayVal = payTripSelect.value;
-    payTripSelect.innerHTML = payTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
-    payTrips.forEach(t => {
+    payTripSelect.innerHTML = paySummaries.length === 0 ? '<option value="">(Нет открытых командировок)</option>' : '';
+    paySummaries.forEach(s => {
+      const t = s.trip;
       payTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
     });
     if (currentPayVal) payTripSelect.value = currentPayVal;
@@ -578,8 +558,9 @@ async function refreshTripSelects() {
 
   if (reportTripSelect) {
     const currentRepVal = reportTripSelect.value;
-    reportTripSelect.innerHTML = repTrips.length === 0 ? '<option value="">(Нет активных командировок)</option>' : '';
-    repTrips.forEach(t => {
+    reportTripSelect.innerHTML = repSummaries.length === 0 ? '<option value="">(Нет открытых командировок)</option>' : '';
+    repSummaries.forEach(s => {
+      const t = s.trip;
       reportTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
     });
     if (currentRepVal) reportTripSelect.value = currentRepVal;
@@ -2082,18 +2063,25 @@ async function openQuickAddModal() {
   const tripSelect = document.getElementById('quickExpenseTripId');
   if (!modal || !tripSelect) return;
 
-  const trips = await db.trips.toArray();
-  const isTripInWork = t => {
-    const st = String(t.status || '').trim();
-    return st !== 'Отправлен' && st !== 'Выплачен' && st !== 'Отчитан' && st !== 'Завершена';
+  const aggregated = await getAggregatedSummary();
+  const trips = aggregated.tripSummaries;
+
+  const isTripInWork = s => {
+    const t = s.trip;
+    const st = String(t.status || 'не подготовлен').trim();
+    if (st === 'Отправлен' || st === 'Выплачен' || st === 'Отчитан' || st === 'Завершена') return false;
+    if (s.totalOwed > 0 && s.paymentsTotal >= s.totalOwed) return false;
+    return true;
   };
-  const activeTrips = trips.filter(isTripInWork);
+
+  const activeSummaries = trips.filter(isTripInWork);
   tripSelect.innerHTML = '';
 
-  if (activeTrips.length === 0) {
+  if (activeSummaries.length === 0) {
     tripSelect.innerHTML = '<option value="">(Нет активных командировок в работе)</option>';
   } else {
-    activeTrips.reverse().forEach(t => {
+    activeSummaries.reverse().forEach(s => {
+      const t = s.trip;
       const opt = document.createElement('option');
       opt.value = t.id;
       opt.innerText = `№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})`;
