@@ -28,6 +28,9 @@
   <header>
     <h1><span class="material-symbols-outlined">flight_takeoff</span> Учет Командировок</h1>
     <div style="display:flex; align-items:center; gap:8px;">
+      <button class="header-action-btn" onclick="openCreateTripModal()" title="Создать поездку">
+        <span class="material-symbols-outlined" style="font-size:18px;">add</span> Новая поездка
+      </button>
       <div class="offline-badge" id="networkStatusBadge">
         <span class="material-symbols-outlined" style="font-size:16px;">wifi_off</span> Offline
       </div>
@@ -61,210 +64,115 @@
       </button>
     </div>
 
-    <!-- TAB 1: TRIPS -->
+    <!-- TAB 1: TRIPS (DASHBOARD) -->
     <div id="tripsTab" class="tab-content active">
-      
-      <div class="card">
-        <div class="card-title">
-          <span class="material-symbols-outlined">add_circle</span> Создать новую поездку
+
+      <!-- 1. ИНТЕРАКТИВНЫЙ ВИДЖЕТ ТЕКУЩЕГО БАЛАНСА -->
+      <div id="homeSummaryWidget" class="dashboard-balance-widget" onclick="toggleHomeBalanceDetails()">
+        <div class="dashboard-balance-header">
+          <div class="dashboard-balance-title">
+            <span class="material-symbols-outlined">account_balance_wallet</span> Текущий долг по открытым поездкам
+          </div>
+          <span id="homeBalanceExpandIcon" class="material-symbols-outlined" style="font-size:20px; color:#FFFFFF; transition:transform 0.3s ease;">expand_more</span>
         </div>
-
-        <form id="tripForm" onsubmit="handleCreateTrip(event)">
-          <div class="form-row">
-            <div class="form-group">
-              <label>№ Заявки сервиса</label>
-              <input type="text" id="tripServiceApp" class="form-control" placeholder="Например: 03-347" required>
-            </div>
-            <div class="form-group">
-              <label>Клиент</label>
-              <input type="text" id="tripClient" class="form-control" list="clientsDatalist" placeholder="Выберите или введите нового" onchange="onClientSelectChange(this.value, 'tripTarget')" oninput="onClientSelectChange(this.value, 'tripTarget')" required>
-              <datalist id="clientsDatalist"></datalist>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Место (Адрес)</label>
-              <input type="text" id="tripTarget" class="form-control" placeholder="г. Екатеринбург, ул. Ленина 5" required>
-            </div>
-            <div class="form-group">
-              <label>Вид работ</label>
-              <select id="tripWorkType" class="form-control"></select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Дата старта (ДД.ММ.ГГГГ)</label>
-              <div style="position:relative; display:flex; align-items:center;">
-                <input type="text" id="tripStartDate" class="form-control" placeholder="09.08.2026" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" required style="padding-right:38px;">
-                <input type="date" id="tripStartDatePicker" style="position:absolute; right:4px; opacity:0; width:32px; height:32px; cursor:pointer; z-index:2;" onchange="syncDatePickerToText('tripStartDate', this.value)">
-                <span class="material-symbols-outlined" style="position:absolute; right:10px; pointer-events:none; color:var(--md-sys-color-primary); font-size:20px;">calendar_month</span>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Дата финиша (ДД.ММ.ГГГГ)</label>
-              <div style="position:relative; display:flex; align-items:center;">
-                <input type="text" id="tripFinishDate" class="form-control" placeholder="09.08.2026" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" required style="padding-right:38px;">
-                <input type="date" id="tripFinishDatePicker" style="position:absolute; right:4px; opacity:0; width:32px; height:32px; cursor:pointer; z-index:2;" onchange="syncDatePickerToText('tripFinishDate', this.value)">
-                <span class="material-symbols-outlined" style="position:absolute; right:10px; pointer-events:none; color:var(--md-sys-color-primary); font-size:20px;">calendar_month</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Вид транспорта</label>
-            <select id="tripTransport" class="form-control" onchange="toggleAutoFields('tripTransport', 'autoFields')"></select>
-          </div>
-
-          <!-- Поля автомобиля (ODO start & ODO finish) -->
-          <div id="autoFields" style="display: none; background: #F0F4F9; padding: 14px; border-radius: 12px; margin-bottom: 16px;">
-            <div class="form-row">
-              <div class="form-group">
-                <label>ODO start (км)</label>
-                <input type="number" id="tripOdoStart" class="form-control" placeholder="120000" step="1">
-              </div>
-              <div class="form-group">
-                <label>ODO finish (км)</label>
-                <input type="number" id="tripOdoFinish" class="form-control" placeholder="121200" step="1">
-              </div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Примечание</label>
-            <input type="text" id="tripNote" class="form-control" placeholder="Дополнительная информация">
-          </div>
-
-          <button type="submit" class="btn">
-            <span class="material-symbols-outlined">save</span> Сохранить поездку
-          </button>
-        </form>
-      </div>
-
-      <!-- СВОДНЫЙ БАЛАНС WIDGET -->
-      <div id="homeSummaryWidget" class="summary-hero-card">
-        <div class="summary-hero-title">
-          <span class="material-symbols-outlined" style="font-size:18px;">account_balance</span> Общий баланс взаиморасчетов
-        </div>
-        <div id="heroBalanceText" class="summary-hero-amount">0 руб.</div>
         
-        <div class="summary-hero-stats">
-          <div class="summary-hero-stat-item">
-            Положено к выплате
-            <span id="heroTotalOwed">0 руб.</span>
+        <div id="heroBalanceText" class="dashboard-balance-amount">0 <span class="currency">₽</span></div>
+        <div id="heroBalanceSubtext" class="dashboard-balance-label">Загрузка данных...</div>
+        
+        <div class="dashboard-balance-progress">
+          <div class="dashboard-progress-track">
+            <div id="heroBalanceProgressFill" class="dashboard-progress-fill" style="width: 0%"></div>
           </div>
-          <div class="summary-hero-stat-item">
-            Выплачено на карту
-            <span id="heroTotalPaid">0 руб.</span>
+          <div class="dashboard-progress-labels">
+            <span id="heroTotalPaid">Авансы: 0 ₽</span>
+            <span id="heroTotalOwed">Траты в работе: 0 ₽</span>
+          </div>
+        </div>
+
+        <!-- Разворачиваемая детализация текущих расходов -->
+        <div id="homeBalanceDetails" class="dashboard-balance-details">
+          <div class="dashboard-details-row">
+            <span>🗓 Суточные (в работе)</span>
+            <strong id="heroDetailPerDiem">0 ₽</strong>
+          </div>
+          <div class="dashboard-details-row">
+            <span>🧾 Чеки и расходы (в работе)</span>
+            <strong id="heroDetailExpenses">0 ₽</strong>
+          </div>
+          <div class="dashboard-details-row">
+            <span>🛠 Амортизация авто</span>
+            <strong id="heroDetailDepr">0 ₽</strong>
+          </div>
+          <div class="dashboard-details-row">
+            <span>💳 Получено авансов</span>
+            <strong id="heroDetailPaid" style="color: #2E7D32;">0 ₽</strong>
           </div>
         </div>
       </div>
 
-      <!-- СПИСОК КОМАНДИРОВОК В РАБОТЕ -->
-      <div style="margin-top: 18px;">
-        <h3 style="font-size: 15px; font-weight: 600; color: var(--md-sys-color-primary); margin-bottom: 12px; display:flex; align-items:center; gap:6px;">
-          <span class="material-symbols-outlined">work</span> Командировки в работе
+      <!-- 2. СЕТКА СТАТУСОВ 2x2 С ПЕРЕХОДОМ НА ВКЛАДКУ БАЛАНСА -->
+      <div class="dashboard-status-grid">
+        <button class="dashboard-status-tile status-tile--not-ready" onclick="goToStatusFilter('не подготовлен')" title="Показать в Балансе">
+          <div class="dashboard-status-tile__top">
+            <span class="dashboard-status-tile__count" id="dashCountNotReady">0</span>
+            <span class="material-symbols-outlined dashboard-status-tile__icon">arrow_forward</span>
+          </div>
+          <div class="dashboard-status-tile__label">не подготовлено</div>
+        </button>
+
+        <button class="dashboard-status-tile status-tile--ready" onclick="goToStatusFilter('Подготовлен')" title="Показать в Балансе">
+          <div class="dashboard-status-tile__top">
+            <span class="dashboard-status-tile__count" id="dashCountReady">0</span>
+            <span class="material-symbols-outlined dashboard-status-tile__icon">arrow_forward</span>
+          </div>
+          <div class="dashboard-status-tile__label">подготовлено</div>
+        </button>
+
+        <button class="dashboard-status-tile status-tile--sent" onclick="goToStatusFilter('Отправлен')" title="Показать в Балансе">
+          <div class="dashboard-status-tile__top">
+            <span class="dashboard-status-tile__count" id="dashCountSent">0</span>
+            <span class="material-symbols-outlined dashboard-status-tile__icon">arrow_forward</span>
+          </div>
+          <div class="dashboard-status-tile__label">отправлено</div>
+        </button>
+
+        <button class="dashboard-status-tile status-tile--paid" onclick="goToStatusFilter('Выплачен')" title="Показать в Балансе">
+          <div class="dashboard-status-tile__top">
+            <span class="dashboard-status-tile__count" id="dashCountPaid">0</span>
+            <span class="material-symbols-outlined dashboard-status-tile__icon">arrow_forward</span>
+          </div>
+          <div class="dashboard-status-tile__label">выплачено</div>
+        </button>
+      </div>
+
+      <!-- 3. КАРУСЕЛЬ КОМАНДИРОВОК В РАБОТЕ -->
+      <div style="margin-top: 6px;">
+        <h3 style="font-size: 14.5px; font-weight: 600; color: #334155; margin-bottom: 10px; display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-outlined" style="color:var(--md-sys-color-primary); font-size:18px;">work</span> Командировки в работе
         </h3>
-        <div id="homeActiveTripsList"></div>
+        <div class="active-trips__scroll" id="homeActiveTripsList"></div>
       </div>
 
     </div>
 
     <!-- TAB 2: ADD EXPENSE & RECEIPT -->
     <div id="expenseTab" class="tab-content">
-      <div class="card">
-        <div class="card-title">
-          <span class="material-symbols-outlined">post_add</span> Внести расход и чек
-        </div>
-
-        <form id="expenseForm" onsubmit="handleAddExpense(event)">
-          <div class="form-group">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-              <label style="margin:0;">Выберите командировку</label>
-              <label style="font-size:12px; color:#555; cursor:pointer; display:flex; align-items:center; gap:4px;">
-                <input type="checkbox" id="showClosedTripsExp" onchange="refreshTripSelects()"> 🔍 Все включая закрытые
-              </label>
-            </div>
-            <select id="expenseTripId" class="form-control" required></select>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Дата расхода (ДД.ММ.ГГГГ)</label>
-              <div style="position:relative; display:flex; align-items:center;">
-                <input type="text" id="expenseDate" class="form-control" placeholder="09.08.2026" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" required style="padding-right:38px;">
-                <input type="date" id="expenseDatePicker" style="position:absolute; right:4px; opacity:0; width:32px; height:32px; cursor:pointer; z-index:2;" onchange="syncDatePickerToText('expenseDate', this.value)">
-                <span class="material-symbols-outlined" style="position:absolute; right:10px; pointer-events:none; color:var(--md-sys-color-primary); font-size:20px;">calendar_month</span>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Сумма (руб)</label>
-              <input type="number" id="expenseAmount" class="form-control" placeholder="0.00" step="0.01" required>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Описание расхода / Назначение</label>
-            <input type="text" id="expenseDesc" class="form-control" placeholder="Отель, АЗС Лукойл, авиабилет и т.д.">
-          </div>
-
-          <div class="form-group">
-            <label>Способ оплаты</label>
-            <select id="expensePaymentType" class="form-control">
-              <option value="cash">💵 Личные средства (в расчёт долга вам)</option>
-              <option value="cashless">💳 Оплата компанией / Безнал (в справочную секцию)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>Прикрепить фото чека или документ</label>
-            <!-- Скрытые input: Камера (image/*), Галерея (image/*), Файл PDF (application/pdf) -->
-            <input type="file" id="receiptCameraInput" accept="image/*" capture="environment" style="display:none;" onchange="previewFile(event)">
-            <input type="file" id="receiptGalleryInput" accept="image/*" style="display:none;" onchange="previewFile(event)">
-            <input type="file" id="receiptPdfInput" accept="application/pdf" style="display:none;" onchange="previewFile(event)">
-
-            <div style="display:flex; gap:8px; margin-bottom:10px;">
-              <button type="button" class="btn btn-secondary" style="flex:1; padding:8px 4px; font-size:13px;" onclick="event.preventDefault(); document.getElementById('receiptCameraInput').click();">
-                <span class="material-symbols-outlined" style="font-size:18px;">photo_camera</span> Камера
-              </button>
-              <button type="button" class="btn btn-secondary" style="flex:1; padding:8px 4px; font-size:13px;" onclick="event.preventDefault(); document.getElementById('receiptGalleryInput').click();">
-                <span class="material-symbols-outlined" style="font-size:18px;">photo_library</span> Галерея
-              </button>
-              <button type="button" class="btn btn-secondary" style="flex:1; padding:8px 4px; font-size:13px;" onclick="event.preventDefault(); document.getElementById('receiptPdfInput').click();">
-                <span class="material-symbols-outlined" style="font-size:18px;">picture_as_pdf</span> PDF
-              </button>
-            </div>
-
-            <!-- Предпросмотр выбранного фото -->
-            <div id="receiptPreviewContainer" style="display:none; text-align:center; margin-top:8px;">
-              <img id="receiptPreviewImg" src="" alt="Предпросмотр чека" style="max-width:100%; max-height:200px; border-radius:10px; border:2px solid var(--md-sys-color-primary-container);">
-              <div id="fileNamePreview" style="margin-top:6px; font-size:13px; color:#666;"></div>
-              <button type="button" onclick="clearReceiptPhoto()" style="margin-top:6px; background:none; border:none; color:#E53935; cursor:pointer; font-size:13px;">✕ Удалить фото</button>
-            </div>
-            <div id="receiptPlaceholder" style="color:#888; font-size:13px; text-align:center; padding:10px 0;">
-              <span class="material-symbols-outlined" style="font-size:28px; display:block; color:#888;">add_a_photo</span>
-              Файл не выбран
-            </div>
-          </div>
-
-          <button type="submit" class="btn" id="saveExpenseBtn">
-            <span class="material-symbols-outlined">upload_file</span> Сохранить расход (Офлайн)
-          </button>
-        </form>
-      </div>
-
       <!-- ОБЩИЙ СПИСОК РАСХОДОВ С ФИЛЬТРОМ ПЕРИОДА -->
-      <div class="card" style="margin-top: 16px;">
+      <div class="card" style="margin-top: 6px;">
         <div class="card-title" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
           <span style="display:flex; align-items:center; gap:6px;">
             <span class="material-symbols-outlined">receipt_long</span> Общий список расходов
           </span>
-          <select id="expensePeriodFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px;" onchange="renderExpensesList()">
-            <option value="currentMonth" selected>Текущий месяц</option>
-            <option value="prevMonth">Прошлый месяц</option>
-            <option value="all">За всё время</option>
-          </select>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <select id="expensePeriodFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px;" onchange="renderExpensesList()">
+              <option value="currentMonth" selected>Текущий месяц</option>
+              <option value="prevMonth">Прошлый месяц</option>
+              <option value="all">За всё время</option>
+            </select>
+            <button class="btn btn-sm" onclick="openQuickAddModal()" style="padding:4px 12px; font-size:12px; font-weight:600; display:flex; align-items:center; gap:4px;">
+              <span class="material-symbols-outlined" style="font-size:16px;">add</span> Добавить
+            </button>
+          </div>
         </div>
 
         <div id="expensesTotalBadge" style="font-size: 13px; font-weight: 600; color: var(--md-sys-color-primary); margin-bottom: 12px;">
@@ -279,59 +187,22 @@
 
     <!-- TAB 3: PAYMENTS -->
     <div id="paymentTab" class="tab-content">
-      <div class="card">
-        <div class="card-title">
-          <span class="material-symbols-outlined">payments</span> Внести выплату от бухгалтерии (на карту)
-        </div>
-
-        <form id="paymentForm" onsubmit="handleAddPayment(event)">
-          <div class="form-group">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-              <label style="margin:0;">Выберите командировку</label>
-              <label style="font-size:12px; color:#555; cursor:pointer; display:flex; align-items:center; gap:4px;">
-                <input type="checkbox" id="showClosedTripsPay" onchange="refreshTripSelects()"> 🔍 Все включая закрытые
-              </label>
-            </div>
-            <select id="paymentTripId" class="form-control" required></select>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Дата выплаты (ДД.ММ.ГГГГ)</label>
-              <div style="position:relative; display:flex; align-items:center;">
-                <input type="text" id="paymentDate" class="form-control" placeholder="09.08.2026" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" required style="padding-right:38px;">
-                <input type="date" id="paymentDatePicker" style="position:absolute; right:4px; opacity:0; width:32px; height:32px; cursor:pointer; z-index:2;" onchange="syncDatePickerToText('paymentDate', this.value)">
-                <span class="material-symbols-outlined" style="position:absolute; right:10px; pointer-events:none; color:var(--md-sys-color-primary); font-size:20px;">calendar_month</span>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Сумма выплаты (руб)</label>
-              <input type="number" id="paymentAmount" class="form-control" placeholder="0.00" step="0.01" required>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>Примечание</label>
-            <input type="text" id="paymentNote" class="form-control" placeholder="Частичная выплата / Полный расчет">
-          </div>
-
-          <button type="submit" class="btn">
-            <span class="material-symbols-outlined">credit_card_heart</span> Зафиксировать выплату
-          </button>
-        </form>
-      </div>
-
       <!-- ОБЩИЙ СПИСОК ВЫПЛАТ С ФИЛЬТРОМ ПЕРИОДА -->
-      <div class="card" style="margin-top: 16px;">
+      <div class="card" style="margin-top: 6px;">
         <div class="card-title" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
           <span style="display:flex; align-items:center; gap:6px;">
             <span class="material-symbols-outlined">payments</span> Общий список выплат
           </span>
-          <select id="paymentPeriodFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px;" onchange="renderPaymentsList()">
-            <option value="currentMonth" selected>Текущий месяц</option>
-            <option value="prevMonth">Прошлый месяц</option>
-            <option value="all">За всё время</option>
-          </select>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <select id="paymentPeriodFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px;" onchange="renderPaymentsList()">
+              <option value="currentMonth" selected>Текущий месяц</option>
+              <option value="prevMonth">Прошлый месяц</option>
+              <option value="all">За всё время</option>
+            </select>
+            <button class="btn btn-sm" onclick="openQuickPaymentModal()" style="padding:4px 12px; font-size:12px; font-weight:600; background:#2E7D32; display:flex; align-items:center; gap:4px;">
+              <span class="material-symbols-outlined" style="font-size:16px;">add</span> Внести
+            </button>
+          </div>
         </div>
 
         <div id="paymentsTotalBadge" style="font-size: 13px; font-weight: 600; color: #2E7D32; margin-bottom: 12px;">
@@ -572,6 +443,29 @@
 
   </div>
 
+  <!-- SPEED DIAL OVERLAY & MENU ДЛЯ МОБИЛЬНОГО -->
+  <div class="speed-dial-overlay" id="speedDialOverlay" onclick="toggleSpeedDial()"></div>
+  <div class="speed-dial-menu" id="speedDialMenu">
+    <div class="speed-dial-item" id="sdTrip">
+      <span class="speed-dial-label">Новая поездка</span>
+      <button class="speed-dial-btn speed-dial-btn--trip" onclick="openCreateTripModal(); toggleSpeedDial();">
+        <span class="material-symbols-outlined">flight_takeoff</span>
+      </button>
+    </div>
+    <div class="speed-dial-item" id="sdExpense">
+      <span class="speed-dial-label">Добавить расход</span>
+      <button class="speed-dial-btn speed-dial-btn--expense" onclick="openQuickAddModal(); toggleSpeedDial();">
+        <span class="material-symbols-outlined">receipt_long</span>
+      </button>
+    </div>
+    <div class="speed-dial-item" id="sdPayment">
+      <span class="speed-dial-label">Внести выплату</span>
+      <button class="speed-dial-btn speed-dial-btn--payment" onclick="openQuickPaymentModal(); toggleSpeedDial();">
+        <span class="material-symbols-outlined">payments</span>
+      </button>
+    </div>
+  </div>
+
   <!-- НИЖНЯЯ МОБИЛЬНАЯ НАВИГАЦИОННАЯ ПАНЕЛЬ С ИДЕАЛЬНОЙ СИММЕТРИЕЙ -->
   <nav class="mobile-bottom-nav">
     <button class="mobile-nav-item active" onclick="switchTab('tripsTab')">
@@ -584,9 +478,9 @@
       <span>Расходы</span>
     </button>
 
-    <!-- Центральная плавающая FAB кнопка "+" для быстрого чека -->
+    <!-- Центральная плавающая FAB кнопка "+" с меню Speed Dial -->
     <div style="flex:1; display:flex; justify-content:center;">
-      <button class="mobile-fab-btn" onclick="openQuickAddModal()" title="Быстрый чек">
+      <button class="mobile-fab-btn" id="mainFabBtn" onclick="toggleSpeedDial()" title="Быстрые действия">
         <span class="material-symbols-outlined">add</span>
       </button>
     </div>
@@ -601,6 +495,90 @@
       <span>Баланс</span>
     </button>
   </nav>
+
+  <!-- МОДАЛЬНОЕ ОКНО (BOTTOM SHEET) СОЗДАНИЯ НОВОЙ ПОЕЗДКИ -->
+  <div id="createTripModal" class="bottom-sheet-backdrop" onclick="closeCreateTripModal()">
+    <div class="bottom-sheet-card" onclick="event.stopPropagation()">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #E1E2EC; padding-bottom:10px;">
+        <strong style="font-size:17px; color:var(--md-sys-color-primary); display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined">flight_takeoff</span> Создать новую поездку
+        </strong>
+        <span class="material-symbols-outlined" style="cursor:pointer; color:#666; font-size:24px;" onclick="closeCreateTripModal()">close</span>
+      </div>
+
+      <form id="modalTripForm" onsubmit="handleCreateTripModal(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label>№ Заявки сервиса</label>
+            <input type="text" id="modalTripServiceApp" class="form-control" placeholder="Например: 03-347" required>
+          </div>
+          <div class="form-group">
+            <label>Клиент</label>
+            <input type="text" id="modalTripClient" class="form-control" list="clientsDatalist" placeholder="Выберите или введите нового" onchange="onClientSelectChange(this.value, 'modalTripTarget')" oninput="onClientSelectChange(this.value, 'modalTripTarget')" required>
+            <datalist id="clientsDatalist"></datalist>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Место (Адрес)</label>
+            <input type="text" id="modalTripTarget" class="form-control" placeholder="г. Екатеринбург, ул. Ленина 5" required>
+          </div>
+          <div class="form-group">
+            <label>Вид работ</label>
+            <select id="modalTripWorkType" class="form-control"></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Дата старта (ДД.ММ.ГГГГ)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="text" id="modalTripStartDate" class="form-control" placeholder="09.08.2026" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" required style="padding-right:38px;">
+              <input type="date" id="modalTripStartDatePicker" style="position:absolute; right:4px; opacity:0; width:32px; height:32px; cursor:pointer; z-index:2;" onchange="syncDatePickerToText('modalTripStartDate', this.value)">
+              <span class="material-symbols-outlined" style="position:absolute; right:10px; pointer-events:none; color:var(--md-sys-color-primary); font-size:20px;">calendar_month</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Дата финиша (ДД.ММ.ГГГГ)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="text" id="modalTripFinishDate" class="form-control" placeholder="09.08.2026" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" required style="padding-right:38px;">
+              <input type="date" id="modalTripFinishDatePicker" style="position:absolute; right:4px; opacity:0; width:32px; height:32px; cursor:pointer; z-index:2;" onchange="syncDatePickerToText('modalTripFinishDate', this.value)">
+              <span class="material-symbols-outlined" style="position:absolute; right:10px; pointer-events:none; color:var(--md-sys-color-primary); font-size:20px;">calendar_month</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Вид транспорта</label>
+          <select id="modalTripTransport" class="form-control" onchange="toggleAutoFields('modalTripTransport', 'modalAutoFields')"></select>
+        </div>
+
+        <!-- Поля автомобиля (ODO start & ODO finish) -->
+        <div id="modalAutoFields" style="display: none; background: #F0F4F9; padding: 14px; border-radius: 12px; margin-bottom: 16px;">
+          <div class="form-row">
+            <div class="form-group">
+              <label>ODO start (км)</label>
+              <input type="number" id="modalTripOdoStart" class="form-control" placeholder="120000" step="1">
+            </div>
+            <div class="form-group">
+              <label>ODO finish (км)</label>
+              <input type="number" id="modalTripOdoFinish" class="form-control" placeholder="121200" step="1">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Примечание</label>
+          <input type="text" id="modalTripNote" class="form-control" placeholder="Дополнительная информация">
+        </div>
+
+        <button type="submit" class="btn" style="padding:14px; margin-top:10px;">
+          <span class="material-symbols-outlined">save</span> Создать поездку
+        </button>
+      </form>
+    </div>
+  </div>
 
   <!-- ВСПЛЫВАЮЩАЯ ШТОРКА (BOTTOM SHEET) ДЛЯ БЫСТРОГО ЧЕКА В 1 КЛИК -->
   <div id="quickAddModal" class="bottom-sheet-backdrop" onclick="closeQuickAddModal()">
@@ -668,6 +646,49 @@
 
         <button type="submit" class="btn" style="padding:14px; margin-top:10px;">
           <span class="material-symbols-outlined">upload_file</span> Сохранить чек
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ВСПЛЫВАЮЩАЯ ШТОРКА (BOTTOM SHEET) ДЛЯ БЫСТРОЙ ВЫПЛАТЫ В 1 КЛИК -->
+  <div id="quickPaymentModal" class="bottom-sheet-backdrop" onclick="closeQuickPaymentModal()">
+    <div class="bottom-sheet-card" onclick="event.stopPropagation()">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #E1E2EC; padding-bottom:10px;">
+        <strong style="font-size:17px; color:#2E7D32; display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined">payments</span> Внести выплату от бухгалтерии
+        </strong>
+        <span class="material-symbols-outlined" style="cursor:pointer; color:#666; font-size:24px;" onclick="closeQuickPaymentModal()">close</span>
+      </div>
+
+      <form id="quickPaymentForm" onsubmit="handleQuickAddPayment(event)">
+        <div class="form-group">
+          <label>Выберите командировку</label>
+          <select id="quickPaymentTripId" class="form-control" required></select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Дата выплаты (ДД.ММ.ГГГГ)</label>
+            <div style="position:relative; display:flex; align-items:center;">
+              <input type="text" id="quickPaymentDate" class="form-control" placeholder="09.08.2026" pattern="[0-9]{2}\.[0-9]{2}\.[0-9]{4}" required style="padding-right:38px;">
+              <input type="date" id="quickPaymentDatePicker" style="position:absolute; right:4px; opacity:0; width:32px; height:32px; cursor:pointer; z-index:2;" onchange="syncDatePickerToText('quickPaymentDate', this.value)">
+              <span class="material-symbols-outlined" style="position:absolute; right:10px; pointer-events:none; color:var(--md-sys-color-primary); font-size:20px;">calendar_month</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Сумма выплаты (руб)</label>
+            <input type="number" id="quickPaymentAmount" class="form-control" placeholder="0.00" step="0.01" required style="font-size:15px; font-weight:600; color:#2E7D32;">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Примечание / Назначение</label>
+          <input type="text" id="quickPaymentNote" class="form-control" placeholder="Аванс на карту / Полный расчет">
+        </div>
+
+        <button type="submit" class="btn" style="padding:14px; margin-top:10px; background:#2E7D32;">
+          <span class="material-symbols-outlined">credit_card_heart</span> Зафиксировать выплату
         </button>
       </form>
     </div>

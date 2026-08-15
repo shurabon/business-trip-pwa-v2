@@ -39,7 +39,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closePhotoModal();
     closeQuickAddModal();
+    closeQuickPaymentModal();
+    closeCreateTripModal();
     if (typeof closeEditBottomSheet === 'function') closeEditBottomSheet();
+    if (speedDialOpen) toggleSpeedDial();
   }
 });
 
@@ -142,6 +145,16 @@ function setupDefaults() {
   window.generateSelectedReport = generateSelectedReport;
   window.openPdfAttachment = openPdfAttachment;
   window.refreshTripSelects = refreshTripSelects;
+  window.toggleSpeedDial = toggleSpeedDial;
+  window.openCreateTripModal = openCreateTripModal;
+  window.closeCreateTripModal = closeCreateTripModal;
+  window.handleCreateTripModal = handleCreateTripModal;
+  window.toggleHomeBalanceDetails = toggleHomeBalanceDetails;
+  window.goToStatusFilter = goToStatusFilter;
+  window.goToTripCard = goToTripCard;
+  window.openQuickPaymentModal = openQuickPaymentModal;
+  window.closeQuickPaymentModal = closeQuickPaymentModal;
+  window.handleQuickAddPayment = handleQuickAddPayment;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -459,39 +472,54 @@ async function loadData() {
 
   // Datalist клиентов
   const clientsDatalist = document.getElementById('clientsDatalist');
-  clientsDatalist.innerHTML = '';
-  clients.forEach(c => {
-    clientsDatalist.innerHTML += `<option value="${c.name}">`;
-  });
+  if (clientsDatalist) {
+    clientsDatalist.innerHTML = '';
+    clients.forEach(c => {
+      clientsDatalist.innerHTML += `<option value="${c.name}">`;
+    });
+  }
 
   // Виды работ
   const workTypeSelect = document.getElementById('tripWorkType');
-  workTypeSelect.innerHTML = '';
+  const modalWorkTypeSelect = document.getElementById('modalTripWorkType');
   const workList = dicts.filter(d => d.category === 'workType').map(d => d.value);
-  workList.forEach(w => {
-    workTypeSelect.innerHTML += `<option value="${w}">${w}</option>`;
-  });
+  if (workTypeSelect) {
+    workTypeSelect.innerHTML = '';
+    workList.forEach(w => workTypeSelect.innerHTML += `<option value="${w}">${w}</option>`);
+  }
+  if (modalWorkTypeSelect) {
+    modalWorkTypeSelect.innerHTML = '';
+    workList.forEach(w => modalWorkTypeSelect.innerHTML += `<option value="${w}">${w}</option>`);
+  }
 
   // Транспорт
   const transportSelect = document.getElementById('tripTransport');
-  transportSelect.innerHTML = '';
+  const modalTransportSelect = document.getElementById('modalTripTransport');
   const transportList = dicts.filter(d => d.category === 'transport').map(d => d.value);
-  transportList.forEach(t => {
-    transportSelect.innerHTML += `<option value="${t}">${t}</option>`;
-  });
-  toggleAutoFields('tripTransport', 'autoFields');
+  if (transportSelect) {
+    transportSelect.innerHTML = '';
+    transportList.forEach(t => transportSelect.innerHTML += `<option value="${t}">${t}</option>`);
+    toggleAutoFields('tripTransport', 'autoFields');
+  }
+  if (modalTransportSelect) {
+    modalTransportSelect.innerHTML = '';
+    transportList.forEach(t => modalTransportSelect.innerHTML += `<option value="${t}">${t}</option>`);
+    toggleAutoFields('modalTripTransport', 'modalAutoFields');
+  }
 
-  // Статусы в фильтре
+  // Статусы в фильтре (если элемент существует и является select)
   const filterSelect = document.getElementById('summaryStatusFilter');
-  filterSelect.innerHTML = `
-    <option value="onlyOpen">⏳ Скрывать только (Расчет закрыт + Статус Отправлен)</option>
-    <option value="all">🌐 Показать абсолютно все расчеты</option>
-  `;
+  if (filterSelect && filterSelect.tagName === 'SELECT') {
+    filterSelect.innerHTML = `
+      <option value="onlyOpen">⏳ Скрывать только (Расчет закрыт + Статус Отправлен)</option>
+      <option value="all">🌐 Показать абсолютно все расчеты</option>
+    `;
 
-  const statusList = dicts.filter(d => d.category === 'status').map(d => d.value);
-  statusList.forEach(st => {
-    filterSelect.innerHTML += `<option value="status:${st}">Статус: ${st}</option>`;
-  });
+    const statusList = dicts.filter(d => d.category === 'status').map(d => d.value);
+    statusList.forEach(st => {
+      filterSelect.innerHTML += `<option value="status:${st}">Статус: ${st}</option>`;
+    });
+  }
 
   const aggregated = await getAggregatedSummary();
   renderHeroBalanceWidget(aggregated);
@@ -687,26 +715,138 @@ function renderHeroBalanceWidget(aggregated) {
     }
   }
 
-  // Обновление сводного виджета на главной странице (первая вкладка "Поездки")
+  // Расчет показателей ТОЛЬКО ПО ОТКРЫТЫМ ПОЕЗДКАМ В РАБОТЕ ДЛЯ ГЛАВНОГО ВИДЖЕТА
+  const inWorkSummaries = aggregated.tripSummaries.filter(s => {
+    const st = String(s.trip.status || 'не подготовлен').trim();
+    if (st === 'Выплачен') return false;
+    if (s.totalOwed > 0 && s.paymentsTotal >= s.totalOwed) return false;
+    return true;
+  });
+
+  let activePerDiem = 0;
+  let activeExpenses = 0;
+  let activeDepr = 0;
+  let activeTotalOwed = 0;
+  let activeTotalPaid = 0;
+
+  inWorkSummaries.forEach(s => {
+    activePerDiem += s.perDiemSum || 0;
+    activeExpenses += s.expensesTotal || 0;
+    activeDepr += s.depreciationCost || 0;
+    activeTotalOwed += s.totalOwed || 0;
+    activeTotalPaid += s.paymentsTotal || 0;
+  });
+
+  const activeCurrentDebt = Math.max(0, activeTotalOwed - activeTotalPaid);
+
   const heroBalEl = document.getElementById('heroBalanceText');
+  const heroSubtext = document.getElementById('heroBalanceSubtext');
+  const heroOwed = document.getElementById('heroTotalOwed');
+  const heroPaid = document.getElementById('heroTotalPaid');
+  const heroProgressFill = document.getElementById('heroBalanceProgressFill');
+
   if (heroBalEl) {
-    if (netBalance < 0) {
-      heroBalEl.innerText = `Долг вам: ${Math.abs(netBalance).toLocaleString('ru-RU')} руб.`;
-      heroBalEl.style.color = '#FFFFFF';
-    } else if (netBalance > 0) {
-      heroBalEl.innerText = `Переплата: ${netBalance.toLocaleString('ru-RU')} руб.`;
-      heroBalEl.style.color = '#FFE082';
+    if (activeCurrentDebt > 0) {
+      heroBalEl.innerHTML = `${activeCurrentDebt.toLocaleString('ru-RU')} <span class="currency">₽</span>`;
+      if (heroSubtext) heroSubtext.innerText = 'Долг бухгалтерии по текущим поездкам';
+    } else if (inWorkSummaries.length === 0) {
+      heroBalEl.innerHTML = `0 <span class="currency">₽</span>`;
+      if (heroSubtext) heroSubtext.innerText = 'Все командировки сданы и выплачены';
     } else {
-      heroBalEl.innerText = `0 руб. (расчеты закрыты)`;
-      heroBalEl.style.color = '#FFFFFF';
+      heroBalEl.innerHTML = `0 <span class="currency">₽</span>`;
+      if (heroSubtext) heroSubtext.innerText = 'Аванс покрывает все текущие траты';
     }
   }
 
-  if (document.getElementById('heroTotalOwed')) {
-    document.getElementById('heroTotalOwed').innerText = `${aggregated.totalOwedAll.toLocaleString('ru-RU')} руб.`;
+  if (heroPaid) heroPaid.innerText = `Авансы: ${activeTotalPaid.toLocaleString('ru-RU')} ₽`;
+  if (heroOwed) heroOwed.innerText = `Траты: ${activeTotalOwed.toLocaleString('ru-RU')} ₽`;
+
+  if (heroProgressFill) {
+    const fillPercent = activeTotalOwed > 0 ? Math.min(100, Math.round((activeTotalPaid / activeTotalOwed) * 100)) : 100;
+    heroProgressFill.style.width = `${fillPercent}%`;
   }
-  if (document.getElementById('heroTotalPaid')) {
-    document.getElementById('heroTotalPaid').innerText = `${aggregated.totalPaidAll.toLocaleString('ru-RU')} руб.`;
+
+  // Детализация расходов
+  const elPD = document.getElementById('heroDetailPerDiem');
+  const elExp = document.getElementById('heroDetailExpenses');
+  const elDepr = document.getElementById('heroDetailDepr');
+  const elPay = document.getElementById('heroDetailPaid');
+  if (elPD) elPD.innerText = `${activePerDiem.toLocaleString('ru-RU')} ₽`;
+  if (elExp) elExp.innerText = `${activeExpenses.toLocaleString('ru-RU')} ₽`;
+  if (elDepr) elDepr.innerText = `${activeDepr.toLocaleString('ru-RU')} ₽`;
+  if (elPay) elPay.innerText = `${activeTotalPaid.toLocaleString('ru-RU')} ₽`;
+
+  // Счетчики статусов 2x2 Grid
+  const countNotReady = document.getElementById('dashCountNotReady');
+  const countReady = document.getElementById('dashCountReady');
+  const countSent = document.getElementById('dashCountSent');
+  const countPaid = document.getElementById('dashCountPaid');
+
+  if (countNotReady && countReady && countSent && countPaid) {
+    let cNR = 0, cR = 0, cS = 0, cP = 0;
+    aggregated.tripSummaries.forEach(s => {
+      const st = s.effectiveStatus || s.trip.status || 'не подготовлен';
+      if (st === 'не подготовлен') cNR++;
+      else if (st === 'Подготовлен') cR++;
+      else if (st === 'Отправлен') cS++;
+      else if (st === 'Выплачен') cP++;
+      else cNR++;
+    });
+    countNotReady.innerText = cNR;
+    countReady.innerText = cR;
+    countSent.innerText = cS;
+    countPaid.innerText = cP;
+
+    // Отключение кликов и стрелок на плитках со значением 0
+    countNotReady.closest('.dashboard-status-tile')?.classList.toggle('tile-disabled', cNR === 0);
+    countReady.closest('.dashboard-status-tile')?.classList.toggle('tile-disabled', cR === 0);
+    countSent.closest('.dashboard-status-tile')?.classList.toggle('tile-disabled', cS === 0);
+    countPaid.closest('.dashboard-status-tile')?.classList.toggle('tile-disabled', cP === 0);
+  }
+
+  // Рендеринг карусели активных командировок в работе
+  const activeContainer = document.getElementById('homeActiveTripsList');
+  if (activeContainer) {
+    if (inWorkSummaries.length === 0) {
+      activeContainer.innerHTML = `
+        <div style="background: #FFFFFF; border: 1px dashed #CBD5E1; border-radius: 16px; padding: 20px; text-align: center; width: 100%; color: #64748B;">
+          <span class="material-symbols-outlined" style="font-size: 32px; color: #94A3B8; display: block; margin-bottom: 4px;">task_alt</span>
+          <strong>Нет открытых командировок в работе</strong>
+          <div style="font-size: 12px; color: #94A3B8; margin-top: 2px;">Все командировки выплачены</div>
+        </div>
+      `;
+    } else {
+      let cardHtml = '';
+      const isSingle = (inWorkSummaries.length === 1);
+      inWorkSummaries.forEach(s => {
+        const t = s.trip;
+        const dates = `${formatDateToRu(t.startDate)} – ${formatDateToRu(t.finishDate)} (${s.days} дн.)`;
+        const isReady = (t.status === 'Подготовлен');
+        const badgeClass = isReady ? 'trip-mini-card__status-badge--ready' : 'trip-mini-card__status-badge--not-ready';
+        const statusLabel = isReady ? 'подготовлен' : 'не подготовлен';
+        const singleClass = isSingle ? 'trip-mini-card--single' : '';
+
+        cardHtml += `
+          <div class="trip-mini-card ${singleClass}" onclick="goToTripCard('${t.id}')">
+            <span class="trip-mini-card__number">№ ${t.appNo || t.id}</span>
+            <div class="trip-mini-card__client">${t.client || 'Клиент'}</div>
+            <div class="trip-mini-card__location">
+              <span class="material-symbols-outlined">location_on</span>
+              ${t.location || 'Город не указан'}
+            </div>
+            <div class="trip-mini-card__dates">
+              <span class="material-symbols-outlined">calendar_month</span>
+              ${dates}
+            </div>
+            <div class="trip-mini-card__footer">
+              <span class="trip-mini-card__amount">${s.totalOwed.toLocaleString('ru-RU')} ₽</span>
+              <span class="trip-mini-card__status-badge ${badgeClass}">${statusLabel}</span>
+            </div>
+          </div>
+        `;
+      });
+      activeContainer.innerHTML = cardHtml;
+    }
   }
 }
 
@@ -796,6 +936,12 @@ async function renderFilteredSummaryList(aggregatedData) {
     filtered = filtered.filter(s => String(s.trip.status) === 'Отправлен');
   } else if (filterVal === 'paid') {
     filtered = filtered.filter(s => String(s.trip.status) === 'Выплачен');
+  } else if (filterVal.startsWith('status:')) {
+    const targetStatus = filterVal.replace('status:', '').trim().toLowerCase();
+    filtered = filtered.filter(s => {
+      const st = String(s.effectiveStatus || s.trip.status || 'не подготовлен').trim().toLowerCase();
+      return st === targetStatus;
+    });
   }
 
   const allExpenses = await db.expenses.toArray();
@@ -1774,7 +1920,13 @@ async function downloadPDFReport() {
 
 function setupServiceWorker() {
   if ('serviceWorker' in navigator) {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const isDev = window.location.hostname === 'localhost' || 
+                  window.location.hostname === '127.0.0.1' || 
+                  window.location.hostname.startsWith('192.168.') || 
+                  window.location.hostname.startsWith('10.') || 
+                  window.location.port !== '';
+
+    if (isDev) {
       navigator.serviceWorker.getRegistrations().then(registrations => {
         for (let r of registrations) r.unregister();
       });
@@ -1785,6 +1937,7 @@ function setupServiceWorker() {
       }
       return;
     }
+
     navigator.serviceWorker.register('/sw.js')
       .then(() => {})
       .catch(() => {});
@@ -2165,5 +2318,213 @@ async function handleQuickAddExpense(event) {
 
   showToast("✅ Чек сохранен!");
   closeQuickAddModal();
+  await loadData();
+}
+
+// ===== SPEED DIAL LOGIC FOR MOBILE =====
+let speedDialOpen = false;
+function toggleSpeedDial() {
+  speedDialOpen = !speedDialOpen;
+  const fab = document.getElementById('mainFabBtn');
+  const overlay = document.getElementById('speedDialOverlay');
+  const actions = ['sdTrip', 'sdExpense', 'sdPayment'];
+
+  if (fab) fab.classList.toggle('open', speedDialOpen);
+  if (overlay) overlay.classList.toggle('visible', speedDialOpen);
+
+  actions.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (speedDialOpen) {
+      setTimeout(() => el.classList.add('visible'), i * 50);
+    } else {
+      el.classList.remove('visible');
+    }
+  });
+}
+
+// ===== MODAL TRIP CREATION LOGIC =====
+function openCreateTripModal() {
+  const modal = document.getElementById('createTripModal');
+  if (!modal) return;
+
+  const todayRu = getTodayRuDate();
+  if (document.getElementById('modalTripStartDate')) document.getElementById('modalTripStartDate').value = todayRu;
+  if (document.getElementById('modalTripFinishDate')) document.getElementById('modalTripFinishDate').value = todayRu;
+  if (document.getElementById('modalTripServiceApp')) document.getElementById('modalTripServiceApp').value = '';
+  if (document.getElementById('modalTripClient')) document.getElementById('modalTripClient').value = '';
+  if (document.getElementById('modalTripTarget')) document.getElementById('modalTripTarget').value = '';
+  if (document.getElementById('modalTripOdoStart')) document.getElementById('modalTripOdoStart').value = '';
+  if (document.getElementById('modalTripOdoFinish')) document.getElementById('modalTripOdoFinish').value = '';
+  if (document.getElementById('modalTripNote')) document.getElementById('modalTripNote').value = '';
+
+  toggleAutoFields('modalTripTransport', 'modalAutoFields');
+
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCreateTripModal() {
+  const modal = document.getElementById('createTripModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function handleCreateTripModal(event) {
+  event.preventDefault();
+  const clientName = document.getElementById('modalTripClient').value.trim();
+  const locationVal = document.getElementById('modalTripTarget').value.trim();
+
+  if (clientName) {
+    const existing = await db.clients.where('name').equalsIgnoreCase(clientName).first();
+    if (!existing) {
+      await db.clients.add({ name: clientName, address: locationVal, updatedAt: new Date().toISOString() });
+    } else if (locationVal && !existing.address) {
+      await db.clients.update(existing.id, { address: locationVal, updatedAt: new Date().toISOString() });
+    }
+  }
+
+  const dicts = await db.dictionaries.toArray();
+  const statuses = dicts.filter(d => d.category === 'status').map(d => d.value);
+  const defaultStatus = statuses.length > 0 ? statuses[0] : 'не подготовлен';
+
+  await db.trips.add({
+    appNo: document.getElementById('modalTripServiceApp').value,
+    client: clientName,
+    location: locationVal,
+    workType: document.getElementById('modalTripWorkType').value,
+    transport: document.getElementById('modalTripTransport').value,
+    startDate: formatDateToRu(document.getElementById('modalTripStartDate').value),
+    finishDate: formatDateToRu(document.getElementById('modalTripFinishDate').value),
+    odoStart: parseFloat(document.getElementById('modalTripOdoStart').value) || 0,
+    odoFinish: parseFloat(document.getElementById('modalTripOdoFinish').value) || 0,
+    status: defaultStatus,
+    perDiemRate: 1100,
+    note: document.getElementById('modalTripNote').value,
+    updatedAt: new Date().toISOString()
+  });
+
+  showToast("✅ Поездка создана!");
+  closeCreateTripModal();
+  await loadData();
+}
+
+// ===== DASHBOARD INTERACTION HELPERS =====
+function toggleHomeBalanceDetails() {
+  const widget = document.getElementById('homeSummaryWidget');
+  const icon = document.getElementById('homeBalanceExpandIcon');
+  if (!widget) return;
+  const isExpanded = widget.classList.toggle('expanded');
+  if (icon) icon.style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+async function goToStatusFilter(statusName) {
+  const aggregated = await getAggregatedSummary();
+  const count = aggregated.tripSummaries.filter(s => {
+    const st = String(s.effectiveStatus || s.trip.status || 'не подготовлен').trim().toLowerCase();
+    return st === statusName.toLowerCase();
+  }).length;
+
+  if (count === 0) {
+    showToast(`ℹ️ Нет командировок со статусом "${statusName}"`);
+    return;
+  }
+
+  switchTab('summaryTab');
+  const filterInput = document.getElementById('summaryStatusFilter');
+  if (filterInput) {
+    filterInput.value = `status:${statusName}`;
+  }
+  document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
+  await renderFilteredSummaryList();
+}
+
+async function goToTripCard(tripId) {
+  switchTab('summaryTab');
+  const filterInput = document.getElementById('summaryStatusFilter');
+  if (filterInput) {
+    filterInput.value = 'all';
+  }
+  document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
+  await renderFilteredSummaryList();
+
+  setTimeout(() => {
+    const card = document.getElementById(`card-container-${tripId}`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('selected-item-inverted');
+      setTimeout(() => card.classList.remove('selected-item-inverted'), 2000);
+    }
+  }, 200);
+}
+
+// ===== QUICK PAYMENT MODAL LOGIC =====
+async function openQuickPaymentModal() {
+  const modal = document.getElementById('quickPaymentModal');
+  const tripSelect = document.getElementById('quickPaymentTripId');
+  if (!modal || !tripSelect) return;
+
+  const aggregated = await getAggregatedSummary();
+  const trips = aggregated.tripSummaries;
+
+  const isTripOpenForPayment = s => {
+    const t = s.trip;
+    const st = String(t.status || 'не подготовлен').trim();
+    if (st === 'Выплачен') return false;
+    if (s.totalOwed > 0 && s.paymentsTotal >= s.totalOwed) return false;
+    return true;
+  };
+
+  const openTrips = trips.filter(isTripOpenForPayment);
+  tripSelect.innerHTML = '';
+
+  if (openTrips.length === 0) {
+    tripSelect.innerHTML = '<option value="">(Все командировки уже выплачены)</option>';
+  } else {
+    openTrips.reverse().forEach(s => {
+      const t = s.trip;
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.innerText = `№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})`;
+      tripSelect.appendChild(opt);
+    });
+  }
+
+  document.getElementById('quickPaymentDate').value = getTodayRuDate();
+  document.getElementById('quickPaymentAmount').value = '';
+  document.getElementById('quickPaymentNote').value = '';
+
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeQuickPaymentModal() {
+  const modal = document.getElementById('quickPaymentModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function handleQuickAddPayment(event) {
+  event.preventDefault();
+  const tripId = document.getElementById('quickPaymentTripId').value;
+  if (!tripId) {
+    showToast("Выберите командировку!");
+    return;
+  }
+
+  const rawDate = document.getElementById('quickPaymentDate').value;
+  const amount = parseFloat(document.getElementById('quickPaymentAmount').value) || 0;
+  const note = document.getElementById('quickPaymentNote').value;
+
+  await db.payments.add({
+    tripId: tripId,
+    date: formatDateToRu(rawDate),
+    amount: amount,
+    note: note,
+    updatedAt: new Date().toISOString()
+  });
+
+  showToast("✅ Выплата зафиксирована!");
+  closeQuickPaymentModal();
   await loadData();
 }

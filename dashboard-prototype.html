@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Dashboard — Учет Командировок</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+  <style>
+    /* ===== Material You 3 Design Tokens ===== */
+    :root {
+      --md-sys-color-primary: #1565C0;
+      --md-sys-color-on-primary: #FFFFFF;
+      --md-sys-color-primary-container: #D4E3FF;
+      --md-sys-color-on-primary-container: #001B3D;
+      --md-sys-color-secondary: #555F71;
+      --md-sys-color-on-secondary: #FFFFFF;
+      --md-sys-color-secondary-container: #D9E3F7;
+      --md-sys-color-on-secondary-container: #121C2B;
+      --md-sys-color-tertiary: #6E5676;
+      --md-sys-color-tertiary-container: #F8D8FF;
+      --md-sys-color-surface: #F8F9FF;
+      --md-sys-color-surface-dim: #D7D9E4;
+      --md-sys-color-surface-container: #EEEEF6;
+      --md-sys-color-surface-container-low: #F3F3FB;
+      --md-sys-color-surface-container-high: #E8E8F0;
+      --md-sys-color-surface-container-highest: #E2E2EA;
+      --md-sys-color-on-surface: #191C20;
+      --md-sys-color-on-surface-variant: #43474E;
+      --md-sys-color-outline: #73777F;
+      --md-sys-color-outline-variant: #C3C6CF;
+      --md-sys-color-error: #BA1A1A;
+      --md-sys-color-error-container: #FFDAD6;
+
+      --md-sys-shape-corner-small: 8px;
+      --md-sys-shape-corner-medium: 12px;
+      --md-sys-shape-corner-large: 16px;
+      --md-sys-shape-corner-extra-large: 28px;
+
+      --md-sys-elevation-1: 0 1px 3px 1px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.1);
+      --md-sys-elevation-2: 0 2px 6px 2px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.1);
+      --md-sys-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.1);
+
+      --md-sys-motion-duration-short: 200ms;
+      --md-sys-motion-duration-medium: 350ms;
+      --md-sys-motion-duration-long: 500ms;
+      --md-sys-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+      --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+      --font-family: 'Roboto', sans-serif;
+
+      /* Status colors */
+      --status-not-ready: #E65100;
+      --status-not-ready-bg: #FFF3E0;
+      --status-ready: #1565C0;
+      --status-ready-bg: #E3F2FD;
+      --status-sent: #6A1B9A;
+      --status-sent-bg: #F3E5F5;
+      --status-paid: #2E7D32;
+      --status-paid-bg: #E8F5E9;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 90px;
+    }
+
+    /* ===== Top App Bar ===== */
+    .top-app-bar {
+      background: var(--md-sys-color-surface);
+      padding: 16px 20px 8px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .top-app-bar h1 {
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface);
+      letter-spacing: -0.2px;
+    }
+
+    .top-app-bar .greeting {
+      font-size: 13px;
+      color: var(--md-sys-color-on-surface-variant);
+      margin-top: 2px;
+    }
+
+    .return-app-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--md-sys-color-surface-container-high);
+      color: var(--md-sys-color-primary);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 20px;
+      transition: background 150ms ease;
+    }
+
+    .return-app-btn:hover {
+      background: var(--md-sys-color-primary-container);
+    }
+
+    /* ===== Dashboard Container ===== */
+    .dashboard {
+      padding: 8px 16px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* ===== Card Base ===== */
+    .widget-card {
+      background: var(--md-sys-color-surface-container-low);
+      border-radius: var(--md-sys-shape-corner-extra-large);
+      padding: 20px;
+      margin-bottom: 14px;
+      box-shadow: var(--md-sys-elevation-1);
+      cursor: pointer;
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      position: relative;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .widget-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--md-sys-color-primary);
+      opacity: 0;
+      transition: opacity 150ms;
+      pointer-events: none;
+    }
+
+    .widget-card:active::after {
+      opacity: 0.05;
+    }
+
+    .widget-card:active {
+      transform: scale(0.99);
+    }
+
+    .widget-card__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .widget-card__title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface-variant);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .widget-card__title .material-symbols-outlined {
+      font-size: 20px;
+      color: var(--md-sys-color-primary);
+    }
+
+    .widget-card__expand-icon {
+      font-size: 20px;
+      color: var(--md-sys-color-on-surface-variant);
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .widget-card.expanded .widget-card__expand-icon {
+      transform: rotate(180deg);
+    }
+
+    /* ===== Balance Widget (Active In-Work Metrics) ===== */
+    .balance-widget {
+      background: linear-gradient(135deg, #D4E3FF 0%, #BBD5FD 100%);
+      border: 1px solid rgba(21, 101, 192, 0.15);
+    }
+
+    .balance-amount {
+      font-size: 34px;
+      font-weight: 400;
+      color: var(--md-sys-color-on-primary-container);
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+    }
+
+    .balance-amount .currency {
+      font-size: 20px;
+      font-weight: 400;
+      opacity: 0.8;
+    }
+
+    .balance-label {
+      font-size: 13px;
+      color: var(--md-sys-color-on-primary-container);
+      opacity: 0.8;
+      margin-top: 4px;
+    }
+
+    .balance-progress {
+      margin-top: 14px;
+    }
+
+    .balance-progress__bar-track {
+      height: 8px;
+      background: rgba(0,0,0,0.08);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .balance-progress__bar-fill {
+      height: 100%;
+      background: var(--md-sys-color-primary);
+      border-radius: 4px;
+      transition: width var(--md-sys-motion-duration-long) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .balance-progress__labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--md-sys-color-on-primary-container);
+      opacity: 0.85;
+    }
+
+    /* Balance expanded details */
+    .balance-details {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
+                  opacity var(--md-sys-motion-duration-short) ease,
+                  margin var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      margin-top: 0;
+    }
+
+    .widget-card.expanded .balance-details {
+      max-height: 240px;
+      opacity: 1;
+      margin-top: 14px;
+    }
+
+    .balance-details__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      font-size: 13px;
+      color: var(--md-sys-color-on-primary-container);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .balance-details__row:last-child {
+      border-bottom: none;
+    }
+
+    .balance-details__row-value {
+      font-weight: 600;
+    }
+
+    /* ===== Status Grid 2x2 ===== */
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .status-tile {
+      border-radius: var(--md-sys-shape-corner-large);
+      padding: 14px 16px;
+      cursor: pointer;
+      border: none;
+      font-family: var(--font-family);
+      text-align: left;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .status-tile::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: currentColor;
+      opacity: 0;
+      transition: opacity 150ms;
+      pointer-events: none;
+    }
+
+    .status-tile:active::after {
+      opacity: 0.08;
+    }
+
+    .status-tile:active {
+      transform: scale(0.98);
+    }
+
+    .status-tile.expanded {
+      grid-column: 1 / -1;
+    }
+
+    .status-tile--not-ready {
+      background: var(--status-not-ready-bg);
+      color: var(--status-not-ready);
+    }
+
+    .status-tile--ready {
+      background: var(--status-ready-bg);
+      color: var(--status-ready);
+    }
+
+    .status-tile--sent {
+      background: var(--status-sent-bg);
+      color: var(--status-sent);
+    }
+
+    .status-tile--paid {
+      background: var(--status-paid-bg);
+      color: var(--status-paid);
+    }
+
+    .status-tile__top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-tile__count {
+      font-size: 26px;
+      font-weight: 400;
+      line-height: 1;
+    }
+
+    .status-tile__icon {
+      font-size: 20px;
+      opacity: 0.6;
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .status-tile.expanded .status-tile__icon {
+      transform: rotate(180deg);
+    }
+
+    .status-tile__label {
+      font-size: 12px;
+      font-weight: 500;
+      margin-top: 4px;
+      opacity: 0.88;
+      letter-spacing: 0.2px;
+    }
+
+    .status-tile__trips {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
+                  opacity var(--md-sys-motion-duration-short) ease,
+                  margin var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      margin-top: 0;
+    }
+
+    .status-tile.expanded .status-tile__trips {
+      max-height: 480px;
+      opacity: 1;
+      margin-top: 12px;
+    }
+
+    .status-tile__trip-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.75);
+      border-radius: var(--md-sys-shape-corner-medium);
+      margin-bottom: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 150ms ease;
+      color: #191C20;
+    }
+
+    .status-tile__trip-item:active {
+      background: rgba(255,255,255,0.95);
+    }
+
+    .status-tile__trip-name {
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .status-tile__trip-meta {
+      font-size: 11px;
+      color: #555;
+      margin-top: 2px;
+    }
+
+    .status-tile__trip-amount {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--md-sys-color-primary);
+      white-space: nowrap;
+      margin-left: 8px;
+    }
+
+    .status-tile__more-btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      padding: 8px 12px;
+      margin-top: 4px;
+      background: rgba(255,255,255,0.5);
+      border: 1px dashed currentColor;
+      border-radius: var(--md-sys-shape-corner-medium);
+      font-size: 12px;
+      font-weight: 600;
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 150ms ease;
+    }
+
+    .status-tile__more-btn:hover {
+      background: rgba(255,255,255,0.8);
+    }
+
+    /* ===== Active Trips Carousel ===== */
+    .active-trips-section {
+      margin-bottom: 14px;
+    }
+
+    .active-trips__scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 4px 0 10px;
+      scrollbar-width: none;
+      scroll-snap-type: x mandatory;
+    }
+
+    .active-trips__scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .trip-mini-card {
+      flex: 0 0 270px;
+      background: var(--md-sys-color-surface-container-low);
+      border: 1px solid #CBD5E1;
+      border-radius: var(--md-sys-shape-corner-large);
+      padding: 16px;
+      box-shadow: var(--md-sys-elevation-1);
+      cursor: pointer;
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      scroll-snap-align: start;
+      position: relative;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .trip-mini-card:active {
+      transform: scale(0.98);
+    }
+
+    .trip-mini-card__number {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--md-sys-color-primary);
+      background: var(--md-sys-color-primary-container);
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+
+    .trip-mini-card__client {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface);
+      margin-bottom: 4px;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .trip-mini-card__location, .trip-mini-card__dates {
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .trip-mini-card__location .material-symbols-outlined,
+    .trip-mini-card__dates .material-symbols-outlined {
+      font-size: 15px;
+      color: #666;
+    }
+
+    .trip-mini-card__footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 10px;
+      margin-top: 6px;
+      border-top: 1px solid var(--md-sys-color-outline-variant);
+    }
+
+    .trip-mini-card__amount {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--md-sys-color-primary);
+    }
+
+    .trip-mini-card__status-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .trip-mini-card__status-badge--not-ready {
+      background: var(--status-not-ready-bg);
+      color: var(--status-not-ready);
+    }
+
+    .trip-mini-card__status-badge--ready {
+      background: var(--status-ready-bg);
+      color: var(--status-ready);
+    }
+
+    /* ===== Recent Activity (Redesigned) ===== */
+    .activity-list {
+      list-style: none;
+    }
+
+    .activity-item {
+      padding: 12px 12px;
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      cursor: pointer;
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      border-radius: var(--md-sys-shape-corner-medium);
+      -webkit-tap-highlight-color: transparent;
+      margin-bottom: 4px;
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .activity-item:active {
+      background: var(--md-sys-color-surface-container-high);
+    }
+
+    .activity-item.expanded {
+      background: var(--md-sys-color-surface-container);
+      box-shadow: var(--md-sys-elevation-1);
+    }
+
+    .activity-item__main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .activity-item.expanded .activity-item__main {
+      transform: translateY(-2px);
+    }
+
+    .activity-item__left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .activity-item__icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .activity-item__icon--expense {
+      background: #FFF3E0;
+      color: #E65100;
+    }
+
+    .activity-item__icon--payment {
+      background: #E8F5E9;
+      color: #2E7D32;
+    }
+
+    .activity-item__icon .material-symbols-outlined {
+      font-size: 22px;
+    }
+
+    .activity-item__title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--md-sys-color-on-surface);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .activity-item.expanded .activity-item__title {
+      font-weight: 600;
+    }
+
+    .activity-item__right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .activity-item__amount {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      white-space: nowrap;
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .activity-item__amount--expense {
+      color: #D32F2F;
+    }
+
+    .activity-item__amount--payment {
+      color: #2E7D32;
+    }
+
+    .activity-item__chevron {
+      font-size: 20px;
+      color: var(--md-sys-color-outline);
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      flex-shrink: 0;
+    }
+
+    .activity-item.expanded .activity-item__chevron {
+      transform: rotate(180deg);
+    }
+
+    /* Expanded row with full-width distributed meta data */
+    .activity-item__details {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
+                  opacity var(--md-sys-motion-duration-short) ease,
+                  margin-top var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      margin-top: 0;
+    }
+
+    .activity-item.expanded .activity-item__details {
+      max-height: 80px;
+      opacity: 1;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(0,0,0,0.08);
+    }
+
+    .activity-item__meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .activity-item__meta-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,255,255,0.8);
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-weight: 500;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      flex: 1;
+      justify-content: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .activity-item__meta-item .material-symbols-outlined {
+      font-size: 15px;
+      color: var(--md-sys-color-primary);
+    }
+
+    /* ===== FAB ===== */
+    .fab-container {
+      position: fixed;
+      bottom: 84px;
+      right: 18px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: flex-end;
+      gap: 12px;
+    }
+
+    .fab {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: var(--md-sys-color-primary);
+      color: #FFFFFF;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--md-sys-elevation-3);
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .fab:active {
+      transform: scale(0.92);
+    }
+
+    .fab .material-symbols-outlined {
+      font-size: 26px;
+      transition: transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+    }
+
+    .fab.open .material-symbols-outlined {
+      transform: rotate(45deg);
+    }
+
+    .fab-action {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      transform: scale(0.6) translateY(20px);
+      transition: all var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized);
+      pointer-events: none;
+    }
+
+    .fab-action.visible {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      pointer-events: auto;
+    }
+
+    .fab-action__label {
+      background: var(--md-sys-color-surface-container-highest);
+      color: var(--md-sys-color-on-surface);
+      padding: 7px 14px;
+      border-radius: var(--md-sys-shape-corner-small);
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--md-sys-elevation-2);
+      white-space: nowrap;
+    }
+
+    .fab-action__btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--md-sys-elevation-2);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .fab-action__btn:active {
+      transform: scale(0.9);
+    }
+
+    .fab-action__btn--trip {
+      background: var(--md-sys-color-primary);
+      color: #fff;
+    }
+
+    .fab-action__btn--expense {
+      background: #E65100;
+      color: #fff;
+    }
+
+    .fab-action__btn--payment {
+      background: #2E7D32;
+      color: #fff;
+    }
+
+    .fab-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 199;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-standard);
+    }
+
+    .fab-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ===== Bottom Navigation ===== */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--md-sys-color-surface-container);
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 0;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      z-index: 100;
+      box-shadow: 0 -1px 3px rgba(0,0,0,0.06);
+    }
+
+    .bottom-nav__item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      padding: 4px 16px;
+      border-radius: 16px;
+      border: none;
+      background: none;
+      font-family: var(--font-family);
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .bottom-nav__item .material-symbols-outlined {
+      font-size: 22px;
+      color: var(--md-sys-color-on-surface-variant);
+    }
+
+    .bottom-nav__item span:last-child {
+      font-size: 11.5px;
+      color: var(--md-sys-color-on-surface-variant);
+      font-weight: 500;
+    }
+
+    .bottom-nav__item.active .material-symbols-outlined,
+    .bottom-nav__item.active span:last-child {
+      color: var(--md-sys-color-primary);
+      font-weight: 600;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--md-sys-color-on-surface-variant);
+      letter-spacing: 0.1px;
+      padding: 4px 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .section-title .material-symbols-outlined {
+      font-size: 19px;
+      color: var(--md-sys-color-primary);
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 96px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--md-sys-color-on-surface);
+      color: var(--md-sys-color-surface);
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      z-index: 999;
+      opacity: 0;
+      transition: all 300ms cubic-bezier(0.2, 0, 0, 1);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top App Bar -->
+  <div class="top-app-bar">
+    <div>
+      <h1>Дашборд</h1>
+      <div class="greeting" id="topBarDate">Командировки</div>
+    </div>
+    <a href="index.html" class="return-app-btn">
+      <span class="material-symbols-outlined" style="font-size: 16px;">arrow_back</span>
+      В приложение
+    </a>
+  </div>
+
+  <div class="dashboard">
+
+    <!-- 1. Balance Widget (Актуальные расчеты по активным поездкам) -->
+    <div class="widget-card balance-widget" onclick="toggleExpand(this)">
+      <div class="widget-card__header">
+        <div class="widget-card__title">
+          <span class="material-symbols-outlined">account_balance_wallet</span>
+          Текущий долг по открытым поездкам
+        </div>
+        <span class="material-symbols-outlined widget-card__expand-icon">expand_more</span>
+      </div>
+      <div class="balance-amount" id="balanceAmountText">
+        0 <span class="currency">₽</span>
+      </div>
+      <div class="balance-label" id="balanceLabelText">Загрузка данных...</div>
+
+      <div class="balance-progress">
+        <div class="balance-progress__bar-track">
+          <div class="balance-progress__bar-fill" id="balanceProgressFill" style="width: 0%"></div>
+        </div>
+        <div class="balance-progress__labels">
+          <span id="balancePaidText">Выплачено: 0 ₽</span>
+          <span id="balanceOwedText">Траты в работе: 0 ₽</span>
+        </div>
+      </div>
+
+      <!-- Expanded details -->
+      <div class="balance-details" id="balanceDetailsContainer">
+        <div class="balance-details__row">
+          <span>🗓 Суточные (в работе)</span>
+          <span class="balance-details__row-value" id="detailPerDiem">0 ₽</span>
+        </div>
+        <div class="balance-details__row">
+          <span>🧾 Чеки и расходы (в работе)</span>
+          <span class="balance-details__row-value" id="detailExpenses">0 ₽</span>
+        </div>
+        <div class="balance-details__row">
+          <span>🛠 Амортизация авто</span>
+          <span class="balance-details__row-value" id="detailDepr">0 ₽</span>
+        </div>
+        <div class="balance-details__row">
+          <span>💳 Получено авансов</span>
+          <span class="balance-details__row-value" id="detailPaid" style="color: #2E7D32;">0 ₽</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Status Grid 2x2 -->
+    <div class="status-grid" id="statusGrid">
+      <button class="status-tile status-tile--not-ready" onclick="toggleStatusTile(this)">
+        <div class="status-tile__top">
+          <span class="status-tile__count" id="countNotReady">0</span>
+          <span class="material-symbols-outlined status-tile__icon">expand_more</span>
+        </div>
+        <div class="status-tile__label">не подготовлено</div>
+        <div class="status-tile__trips" id="listNotReady"></div>
+      </button>
+
+      <button class="status-tile status-tile--ready" onclick="toggleStatusTile(this)">
+        <div class="status-tile__top">
+          <span class="status-tile__count" id="countReady">0</span>
+          <span class="material-symbols-outlined status-tile__icon">expand_more</span>
+        </div>
+        <div class="status-tile__label">подготовлено</div>
+        <div class="status-tile__trips" id="listReady"></div>
+      </button>
+
+      <button class="status-tile status-tile--sent" onclick="toggleStatusTile(this)">
+        <div class="status-tile__top">
+          <span class="status-tile__count" id="countSent">0</span>
+          <span class="material-symbols-outlined status-tile__icon">expand_more</span>
+        </div>
+        <div class="status-tile__label">отправлено</div>
+        <div class="status-tile__trips" id="listSent"></div>
+      </button>
+
+      <button class="status-tile status-tile--paid" onclick="toggleStatusTile(this)">
+        <div class="status-tile__top">
+          <span class="status-tile__count" id="countPaid">0</span>
+          <span class="material-symbols-outlined status-tile__icon">expand_more</span>
+        </div>
+        <div class="status-tile__label">выплачено</div>
+        <div class="status-tile__trips" id="listPaid"></div>
+      </button>
+    </div>
+
+    <!-- 3. Active Trips Carousel -->
+    <div class="active-trips-section">
+      <div class="section-title">
+        <span class="material-symbols-outlined">work</span>
+        Командировки в работе
+      </div>
+      <div class="active-trips__scroll" id="activeTripsScroll">
+        <div style="font-size: 13px; color: #777; padding: 12px 0;">Загрузка активных командировок...</div>
+      </div>
+    </div>
+
+    <!-- 4. Recent Activity (Real expenses & payments feed) -->
+    <div class="widget-card" style="cursor: default;">
+      <div class="widget-card__header">
+        <div class="widget-card__title">
+          <span class="material-symbols-outlined">history</span>
+          Последние операции
+        </div>
+      </div>
+      <ul class="activity-list" id="recentActivityList">
+        <li style="font-size: 13px; color: #777; padding: 10px 0;">Загрузка операций...</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- FAB -->
+  <div class="fab-overlay" id="fabOverlay" onclick="toggleFab()"></div>
+  <div class="fab-container">
+    <button class="fab" id="fabMain" onclick="toggleFab()">
+      <span class="material-symbols-outlined">add</span>
+    </button>
+    <div class="fab-action" id="fabTrip">
+      <span class="fab-action__label">Новая поездка</span>
+      <a href="index.html" class="fab-action__btn fab-action__btn--trip">
+        <span class="material-symbols-outlined">flight_takeoff</span>
+      </a>
+    </div>
+    <div class="fab-action" id="fabExpense">
+      <span class="fab-action__label">Добавить расход</span>
+      <a href="index.html" class="fab-action__btn fab-action__btn--expense">
+        <span class="material-symbols-outlined">receipt_long</span>
+      </a>
+    </div>
+    <div class="fab-action" id="fabPayment">
+      <span class="fab-action__label">Внести выплату</span>
+      <a href="index.html" class="fab-action__btn fab-action__btn--payment">
+        <span class="material-symbols-outlined">payments</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav">
+    <a href="dashboard-prototype.html" class="bottom-nav__item active">
+      <span class="material-symbols-outlined">dashboard</span>
+      <span>Дашборд</span>
+    </a>
+    <a href="index.html" class="bottom-nav__item">
+      <span class="material-symbols-outlined">work</span>
+      <span>Поездки</span>
+    </a>
+    <a href="index.html" class="bottom-nav__item">
+      <span class="material-symbols-outlined">receipt_long</span>
+      <span>Расходы</span>
+    </a>
+    <a href="index.html" class="bottom-nav__item">
+      <span class="material-symbols-outlined">settings</span>
+      <span>Настройки</span>
+    </a>
+  </nav>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Real Data Logic via Module -->
+  <script type="module">
+    import { db, getAggregatedSummary, formatDateToRu } from './db.js';
+
+    // Гарантированное отключение Service Worker на локальном сервере
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        for (let r of regs) r.unregister();
+      });
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          for (let name of names) caches.delete(name);
+        });
+      }
+    }
+
+    // Format Ru Date for Header
+    const now = new Date();
+    const daysRu = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+    const monthsRu = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+    const topBarDate = document.getElementById('topBarDate');
+    if (topBarDate) {
+      topBarDate.innerText = `${daysRu[now.getDay()]}, ${now.getDate()} ${monthsRu[now.getMonth()]}`;
+    }
+
+    // Toggle card expand
+    window.toggleExpand = function(card) {
+      card.classList.toggle('expanded');
+    };
+
+    // Toggle status tile 2x2
+    window.toggleStatusTile = function(tile) {
+      const wasExpanded = tile.classList.contains('expanded');
+      document.querySelectorAll('.status-tile').forEach(t => t.classList.remove('expanded'));
+      if (!wasExpanded) {
+        tile.classList.add('expanded');
+      }
+    };
+
+    // Toggle activity details
+    window.toggleActivityDetails = function(item) {
+      const wasExpanded = item.classList.contains('expanded');
+      document.querySelectorAll('.activity-item.expanded').forEach(el => el.classList.remove('expanded'));
+      if (!wasExpanded) {
+        item.classList.add('expanded');
+      }
+    };
+
+    // FAB Speed Dial
+    let fabOpen = false;
+    window.toggleFab = function() {
+      fabOpen = !fabOpen;
+      const fab = document.getElementById('fabMain');
+      const overlay = document.getElementById('fabOverlay');
+      const actions = ['fabTrip', 'fabExpense', 'fabPayment'];
+
+      fab.classList.toggle('open', fabOpen);
+      overlay.classList.toggle('visible', fabOpen);
+
+      actions.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (fabOpen) {
+          setTimeout(() => el.classList.add('visible'), i * 50);
+        } else {
+          el.classList.remove('visible');
+        }
+      });
+    };
+
+    window.showToast = function(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(80px)';
+      }, 2200);
+    };
+
+    // Load Real Data and render Dashboard
+    async function loadDashboardData() {
+      try {
+        const aggregated = await getAggregatedSummary();
+        const allTrips = await db.trips.toArray();
+        const allExpenses = await db.expenses.toArray();
+        const allPayments = await db.payments.toArray();
+
+        // 1. Фильтруем поездки: В РАБОТЕ vs ВЫПЛАЧЕННЫЕ
+        // Поездка в работе: статус не 'Выплачен' и долг финансово не закрыт полностью
+        const inWorkSummaries = aggregated.tripSummaries.filter(s => {
+          const st = String(s.trip.status || 'не подготовлен').trim();
+          if (st === 'Выплачен') return false;
+          if (s.totalOwed > 0 && s.paymentsTotal >= s.totalOwed) return false;
+          return true;
+        });
+
+        // 2. Считаем финансовые показатели ТОЛЬКО ПО ТЕКУЩИМ ОТКРЫТЫМ ПОЕЗДКАМ
+        let activePerDiem = 0;
+        let activeExpenses = 0;
+        let activeDepr = 0;
+        let activeTotalOwed = 0;
+        let activeTotalPaid = 0;
+
+        inWorkSummaries.forEach(s => {
+          activePerDiem += s.perDiemSum || 0;
+          activeExpenses += s.expensesTotal || 0;
+          activeDepr += s.depreciationCost || 0;
+          activeTotalOwed += s.totalOwed || 0;
+          activeTotalPaid += s.paymentsTotal || 0;
+        });
+
+        const activeCurrentDebt = Math.max(0, activeTotalOwed - activeTotalPaid);
+
+        // Рендерим виджет баланса
+        const balanceAmountText = document.getElementById('balanceAmountText');
+        const balanceLabelText = document.getElementById('balanceLabelText');
+        const balancePaidText = document.getElementById('balancePaidText');
+        const balanceOwedText = document.getElementById('balanceOwedText');
+        const balanceProgressFill = document.getElementById('balanceProgressFill');
+
+        if (activeCurrentDebt > 0) {
+          balanceAmountText.innerHTML = `${activeCurrentDebt.toLocaleString('ru-RU')} <span class="currency">₽</span>`;
+          balanceLabelText.innerText = 'Долг бухгалтерии по текущим поездкам';
+        } else if (inWorkSummaries.length === 0) {
+          balanceAmountText.innerHTML = `0 <span class="currency">₽</span>`;
+          balanceLabelText.innerText = 'Все командировки сданы и выплачены';
+        } else {
+          balanceAmountText.innerHTML = `0 <span class="currency">₽</span>`;
+          balanceLabelText.innerText = 'Аванс покрывает все текущие траты';
+        }
+
+        balancePaidText.innerText = `Авансы: ${activeTotalPaid.toLocaleString('ru-RU')} ₽`;
+        balanceOwedText.innerText = `Траты: ${activeTotalOwed.toLocaleString('ru-RU')} ₽`;
+
+        const fillPercent = activeTotalOwed > 0 ? Math.min(100, Math.round((activeTotalPaid / activeTotalOwed) * 100)) : 100;
+        balanceProgressFill.style.width = `${fillPercent}%`;
+
+        // Детализация расходов
+        document.getElementById('detailPerDiem').innerText = `${activePerDiem.toLocaleString('ru-RU')} ₽`;
+        document.getElementById('detailExpenses').innerText = `${activeExpenses.toLocaleString('ru-RU')} ₽`;
+        document.getElementById('detailDepr').innerText = `${activeDepr.toLocaleString('ru-RU')} ₽`;
+        document.getElementById('detailPaid').innerText = `${activeTotalPaid.toLocaleString('ru-RU')} ₽`;
+
+        // 3. Статусы 2x2 Grid (Группировка реальных данных)
+        const groups = {
+          'не подготовлен': [],
+          'Подготовлен': [],
+          'Отправлен': [],
+          'Выплачен': []
+        };
+
+        aggregated.tripSummaries.forEach(s => {
+          const st = s.effectiveStatus || s.trip.status || 'не подготовлен';
+          if (groups[st]) {
+            groups[st].push(s);
+          } else {
+            groups['не подготовлен'].push(s);
+          }
+        });
+
+        // Заполняем счетчики
+        document.getElementById('countNotReady').innerText = groups['не подготовлен'].length;
+        document.getElementById('countReady').innerText = groups['Подготовлен'].length;
+        document.getElementById('countSent').innerText = groups['Отправлен'].length;
+        document.getElementById('countPaid').innerText = groups['Выплачен'].length;
+
+        // Генерация списков для аккордеона (Топ-3 + кнопка "показать все")
+        function renderAccordionList(containerId, items) {
+          const container = document.getElementById(containerId);
+          if (!container) return;
+
+          if (items.length === 0) {
+            container.innerHTML = '<div style="font-size:12px; opacity:0.75; padding:4px 0;">Нет поездок</div>';
+            return;
+          }
+
+          const topItems = items.slice(0, 3);
+          let html = '';
+          topItems.forEach(s => {
+            const t = s.trip;
+            const dates = `${formatDateToRu(t.startDate)} – ${formatDateToRu(t.finishDate)}`;
+            html += `
+              <div class="status-tile__trip-item" onclick="event.stopPropagation(); window.location.href='index.html'">
+                <div>
+                  <div class="status-tile__trip-name">№${t.appNo || t.id} — ${t.client || 'Поездка'}</div>
+                  <div class="status-tile__trip-meta">${dates} · ${t.location || ''}</div>
+                </div>
+                <span class="status-tile__trip-amount">${s.totalOwed.toLocaleString('ru-RU')} ₽</span>
+              </div>
+            `;
+          });
+
+          if (items.length > 3) {
+            html += `
+              <a href="index.html" class="status-tile__more-btn" onclick="event.stopPropagation();">
+                Показать все ${items.length} в приложении →
+              </a>
+            `;
+          }
+
+          container.innerHTML = html;
+        }
+
+        renderAccordionList('listNotReady', groups['не подготовлен']);
+        renderAccordionList('listReady', groups['Подготовлен']);
+        renderAccordionList('listSent', groups['Отправлен']);
+        renderAccordionList('listPaid', groups['Выплачен']);
+
+        // 4. Карусель активных командировок в работе
+        const activeScroll = document.getElementById('activeTripsScroll');
+        if (inWorkSummaries.length === 0) {
+          activeScroll.innerHTML = `
+            <div style="background: var(--md-sys-color-surface-container-low); border: 1px dashed #CBD5E1; border-radius: 16px; padding: 20px; text-align: center; width: 100%; color: #666;">
+              <span class="material-symbols-outlined" style="font-size: 32px; color: #888; display: block; margin-bottom: 4px;">task_alt</span>
+              <strong>Нет открытых командировок в работе</strong>
+              <div style="font-size: 12px; color: #888; margin-top: 2px;">Создайте новую поездку через кнопку (+)</div>
+            </div>
+          `;
+        } else {
+          let cardHtml = '';
+          inWorkSummaries.forEach(s => {
+            const t = s.trip;
+            const dates = `${formatDateToRu(t.startDate)} – ${formatDateToRu(t.finishDate)} (${s.days} дн.)`;
+            const isReady = t.status === 'Подготовлен';
+            const badgeClass = isReady ? 'trip-mini-card__status-badge--ready' : 'trip-mini-card__status-badge--not-ready';
+            const statusLabel = isReady ? 'подготовлен' : 'не подготовлен';
+
+            cardHtml += `
+              <div class="trip-mini-card" onclick="window.location.href='index.html'">
+                <span class="trip-mini-card__number">№ ${t.appNo || t.id}</span>
+                <div class="trip-mini-card__client">${t.client || 'Клиент'}</div>
+                <div class="trip-mini-card__location">
+                  <span class="material-symbols-outlined">location_on</span>
+                  ${t.location || 'Город не указан'}
+                </div>
+                <div class="trip-mini-card__dates">
+                  <span class="material-symbols-outlined">calendar_month</span>
+                  ${dates}
+                </div>
+                <div class="trip-mini-card__footer">
+                  <span class="trip-mini-card__amount">${s.totalOwed.toLocaleString('ru-RU')} ₽</span>
+                  <span class="trip-mini-card__status-badge ${badgeClass}">${statusLabel}</span>
+                </div>
+              </div>
+            `;
+          });
+          activeScroll.innerHTML = cardHtml;
+        }
+
+        // 5. Последние операции (объединенная лента чеков и выплат)
+        const recentActivityList = document.getElementById('recentActivityList');
+        const operations = [];
+
+        allExpenses.forEach(e => {
+          const trip = allTrips.find(t => String(t.id) === String(e.tripId));
+          operations.push({
+            type: 'expense',
+            id: e.id,
+            tripId: e.tripId,
+            date: e.date,
+            amount: parseFloat(e.amount) || 0,
+            title: e.description || 'Расход / Чек',
+            client: trip ? trip.client : 'Поездка',
+            appNo: trip ? (trip.appNo || trip.id) : '',
+            receiptName: e.receiptName,
+            receiptBase64: e.receiptBase64
+          });
+        });
+
+        allPayments.forEach(p => {
+          const trip = allTrips.find(t => String(t.id) === String(p.tripId));
+          operations.push({
+            type: 'payment',
+            id: p.id,
+            tripId: p.tripId,
+            date: p.date,
+            amount: parseFloat(p.amount) || 0,
+            title: p.note || p.purpose || 'Выплата от бухгалтерии',
+            client: trip ? trip.client : 'Поездка',
+            appNo: trip ? (trip.appNo || trip.id) : ''
+          });
+        });
+
+        // Сортируем по ID / дате (самые свежие сверху)
+        operations.sort((a, b) => (b.id || 0) - (a.id || 0));
+
+        const recentOps = operations.slice(0, 5);
+        if (recentOps.length === 0) {
+          recentActivityList.innerHTML = '<li style="font-size: 13px; color: #888; padding: 8px 0;">Операций пока нет</li>';
+        } else {
+          let opsHtml = '';
+          recentOps.forEach(op => {
+            const isExp = op.type === 'expense';
+            const iconClass = isExp ? 'activity-item__icon--expense' : 'activity-item__icon--payment';
+            const iconName = isExp ? 'receipt_long' : 'payments';
+            const sign = isExp ? '−' : '+';
+            const amountClass = isExp ? 'activity-item__amount--expense' : 'activity-item__amount--payment';
+            const subtitle = `№${op.appNo} · ${op.client} · ${op.date}`;
+
+            opsHtml += `
+              <li class="activity-item" onclick="toggleActivityDetails(this)">
+                <div class="activity-item__main">
+                  <div class="activity-item__left">
+                    <div class="activity-item__icon ${iconClass}">
+                      <span class="material-symbols-outlined">${iconName}</span>
+                    </div>
+                    <div class="activity-item__title">${op.title}</div>
+                  </div>
+                  <div class="activity-item__right">
+                    <div class="activity-item__amount ${amountClass}">${sign}${op.amount.toLocaleString('ru-RU')} ₽</div>
+                    <span class="material-symbols-outlined activity-item__chevron">expand_more</span>
+                  </div>
+                </div>
+                <div class="activity-item__details">
+                  <div class="activity-item__meta-row">
+                    <span class="activity-item__meta-item">
+                      <span class="material-symbols-outlined">calendar_month</span> ${op.date}
+                    </span>
+                    <span class="activity-item__meta-item">
+                      <span class="material-symbols-outlined">work</span> №${op.appNo || '—'} ${op.client}
+                    </span>
+                    ${op.receiptBase64 ? '<span class="activity-item__meta-item"><span class="material-symbols-outlined">photo_camera</span> Чек</span>' : ''}
+                  </div>
+                </div>
+              </li>
+            `;
+          });
+          recentActivityList.innerHTML = opsHtml;
+        }
+
+      } catch (err) {
+        console.error("Dashboard data load error:", err);
+      }
+    }
+
+    // Run on load
+    loadDashboardData();
+  </script>
+</body>
+</html>
