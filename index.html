@@ -237,7 +237,7 @@
       <!-- ПОИСК И ФИЛЬТРЫ БЕЗ РОДИТЕЛЬСКОЙ КАРТОЧКИ -->
       <div class="search-input-wrapper">
         <span class="material-symbols-outlined">search</span>
-        <input type="search" id="summarySearchInput" name="summary_search_query" class="form-control" placeholder="🔍 Поиск по клиенту, объекту, № заявки..." oninput="renderFilteredSummaryList()" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
+        <input type="text" id="summarySearchInput" name="trip_search_query_custom" class="form-control" placeholder="🔍 Поиск по клиенту, объекту, № заявки..." readonly onfocus="this.removeAttribute('readonly')" oninput="renderFilteredSummaryList()" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
       </div>
 
       <div class="filter-chips-container">

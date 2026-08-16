@@ -2554,17 +2554,14 @@ function protectSearchInputFromAutofill() {
     const token = localStorage.getItem('github_token') || '';
     const gistId = localStorage.getItem('github_gist_id') || '';
 
-    // Если браузер подставил токен или gistId в поиск - очищаем
+    // Если браузер вставил токен или gistId в поиск - очищаем без повторного вызова перерендера
     if ((token && val === token) || (gistId && val === gistId) || (val.length >= 32 && !val.includes(' ') && /^[a-f0-9]+$/i.test(val))) {
       searchInput.value = '';
-      renderFilteredSummaryList();
     }
   };
 
-  searchInput.addEventListener('focus', sanitizeSearch);
   searchInput.addEventListener('change', sanitizeSearch);
-  setTimeout(sanitizeSearch, 300);
-  setTimeout(sanitizeSearch, 1000);
+  searchInput.addEventListener('input', sanitizeSearch);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
