@@ -280,37 +280,45 @@ function switchTab(tabId) {
 }
 
 async function syncWithGithub() {
-  await cleanupDuplicates();
-  const token = localStorage.getItem('github_token') || document.getElementById('githubTokenInput').value.trim();
+  const token = localStorage.getItem('github_token') || document.getElementById('githubTokenInput')?.value.trim();
   if (!token) {
     showToast("Сначала укажите GitHub Personal Access Token");
     return;
   }
 
   const badge = document.getElementById('syncStatusBadge');
-  badge.innerHTML = '⏳ Идёт синхронизация через GitHub Gist...';
+  if (badge) badge.innerHTML = '⏳ Идёт синхронизация через GitHub Gist...';
+
+  // Таймаут безопасности (15 секунд), чтобы процесс не висел перманентно при проблемах с сетью
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error("Превышено время ожидания ответа GitHub (15 сек). Проверьте интернет или VPN.")), 15000)
+  );
 
   try {
-    const res = await downloadAndMergeFromGithubGist(token);
+    const res = await Promise.race([
+      downloadAndMergeFromGithubGist(token),
+      timeoutPromise
+    ]);
     const timeStr = new Date().toLocaleTimeString('ru-RU');
 
     // Показываем Gist ID в интерфейсе, чтобы можно было скопировать на второе устройство
     const gistId = res.gistId || localStorage.getItem('github_gist_id') || '';
-    if (gistId) {
+    if (gistId && document.getElementById('githubGistIdInput')) {
       document.getElementById('githubGistIdInput').value = gistId;
     }
 
     if (res.isNew) {
-      badge.innerHTML = `🟢 База выгружена впервые. Поездок: ${res.finalTripsCount}. Gist ID: <strong>${gistId}</strong>`;
+      if (badge) badge.innerHTML = `🟢 База выгружена впервые. Поездок: ${res.finalTripsCount}. Gist ID: <strong>${gistId}</strong>`;
       showToast(`✅ База загружена в GitHub Gist! Скопируйте Gist ID для второго устройства.`);
     } else {
-      badge.innerHTML = `🟢 Синхронизировано в ${timeStr}. Поездок в базе: ${res.finalTripsCount}. Gist ID: <strong>${gistId}</strong>`;
+      if (badge) badge.innerHTML = `🟢 Синхронизировано в ${timeStr}. Поездок в базе: ${res.finalTripsCount}. Gist ID: <strong>${gistId}</strong>`;
       showToast(`✅ Синхронизация выполнена! Поездок: ${res.finalTripsCount}`);
     }
     await loadData();
   } catch (err) {
-    badge.innerHTML = `🔴 Ошибка синхронизации: ${err.message}`;
-    showToast("❌ Ошибка синхронизации: " + err.message);
+    const errMsg = err?.message || String(err);
+    if (badge) badge.innerHTML = `🔴 Ошибка синхронизации: ${errMsg}`;
+    showToast("❌ Ошибка синхронизации: " + errMsg);
   }
 }
 
