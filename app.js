@@ -914,6 +914,7 @@ function setSummaryChipFilter(val, btn) {
 }
 
 async function renderFilteredSummaryList(aggregatedData) {
+  const filterVal = document.getElementById('summaryStatusFilter')?.value || 'inProgress';
   const rawSearch = (document.getElementById('summarySearchInput')?.value || '').trim();
   const token = localStorage.getItem('github_token') || '';
   const gistId = localStorage.getItem('github_gist_id') || '';
