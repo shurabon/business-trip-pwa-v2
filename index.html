@@ -21,8 +21,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-  <script type="module" crossorigin src="./assets/index-CRSzEO7O.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-CwKFUdeJ.css">
+  <script type="module" crossorigin src="./assets/index-C1qPR_fs.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BwOwNTfr.css">
 </head>
 <body>
 
@@ -158,61 +158,57 @@
 
     <!-- TAB 2: ADD EXPENSE & RECEIPT -->
     <div id="expenseTab" class="tab-content">
-      <!-- ОБЩИЙ СПИСОК РАСХОДОВ С ФИЛЬТРОМ ПЕРИОДА -->
-      <div class="card" style="margin-top: 6px;">
-        <div class="card-title" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-          <span style="display:flex; align-items:center; gap:6px;">
-            <span class="material-symbols-outlined">receipt_long</span> Общий список расходов
-          </span>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <select id="expensePeriodFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px;" onchange="renderExpensesList()">
-              <option value="currentMonth" selected>Текущий месяц</option>
-              <option value="prevMonth">Прошлый месяц</option>
-              <option value="all">За всё время</option>
-            </select>
-            <button class="btn btn-sm" onclick="openQuickAddModal()" style="padding:4px 12px; font-size:12px; font-weight:600; display:flex; align-items:center; gap:4px;">
-              <span class="material-symbols-outlined" style="font-size:16px;">add</span> Добавить
-            </button>
-          </div>
+      <!-- ПАНЕЛЬ УПРАВЛЕНИЯ СПИСКОМ РАСХОДОВ -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+        <span style="font-size:16px; font-weight:600; color:var(--md-sys-color-primary); display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-outlined">receipt_long</span> Расходы и чеки
+        </span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <select id="expensePeriodFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px;" onchange="renderExpensesList()">
+            <option value="currentMonth" selected>Текущий месяц</option>
+            <option value="prevMonth">Прошлый месяц</option>
+            <option value="all">За всё время</option>
+          </select>
+          <button class="btn btn-sm" onclick="openQuickAddModal()" style="padding:6px 14px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:4px;">
+            <span class="material-symbols-outlined" style="font-size:16px;">add</span> Добавить
+          </button>
         </div>
+      </div>
 
-        <div id="expensesTotalBadge" style="font-size: 13px; font-weight: 600; color: var(--md-sys-color-primary); margin-bottom: 12px;">
-          Итого за период: 0 руб.
-        </div>
+      <div id="expensesTotalBadge" style="font-size: 13px; font-weight: 600; color: var(--md-sys-color-primary); margin-bottom: 12px;">
+        Итого за период: 0 руб.
+      </div>
 
-        <div id="expensesListContainer">
-          <!-- Рендер списка расходов -->
-        </div>
+      <div id="expensesListContainer">
+        <!-- Рендер списка расходов -->
       </div>
     </div>
 
     <!-- TAB 3: PAYMENTS -->
     <div id="paymentTab" class="tab-content">
-      <!-- ОБЩИЙ СПИСОК ВЫПЛАТ С ФИЛЬТРОМ ПЕРИОДА -->
-      <div class="card" style="margin-top: 6px;">
-        <div class="card-title" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-          <span style="display:flex; align-items:center; gap:6px;">
-            <span class="material-symbols-outlined">payments</span> Общий список выплат
-          </span>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <select id="paymentPeriodFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px;" onchange="renderPaymentsList()">
-              <option value="currentMonth" selected>Текущий месяц</option>
-              <option value="prevMonth">Прошлый месяц</option>
-              <option value="all">За всё время</option>
-            </select>
-            <button class="btn btn-sm" onclick="openQuickPaymentModal()" style="padding:4px 12px; font-size:12px; font-weight:600; background:#2E7D32; display:flex; align-items:center; gap:4px;">
-              <span class="material-symbols-outlined" style="font-size:16px;">add</span> Внести
-            </button>
-          </div>
+      <!-- ПАНЕЛЬ УПРАВЛЕНИЯ СПИСКОМ ВЫПЛАТ -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+        <span style="font-size:16px; font-weight:600; color:#2E7D32; display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-outlined">payments</span> Выплаты от бухгалтерии
+        </span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <select id="paymentPeriodFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px;" onchange="renderPaymentsList()">
+            <option value="currentMonth" selected>Текущий месяц</option>
+            <option value="prevMonth">Прошлый месяц</option>
+            <option value="all">За всё время</option>
+          </select>
+          <button class="btn btn-sm" onclick="openQuickPaymentModal()" style="padding:6px 14px; font-size:13px; font-weight:600; background:#2E7D32; display:flex; align-items:center; gap:4px;">
+            <span class="material-symbols-outlined" style="font-size:16px;">add</span> Внести
+          </button>
         </div>
+      </div>
 
-        <div id="paymentsTotalBadge" style="font-size: 13px; font-weight: 600; color: #2E7D32; margin-bottom: 12px;">
-          Итого за период: 0 руб.
-        </div>
+      <div id="paymentsTotalBadge" style="font-size: 13px; font-weight: 600; color: #2E7D32; margin-bottom: 12px;">
+        Итого за период: 0 руб.
+      </div>
 
-        <div id="paymentsListContainer">
-          <!-- Рендер списка выплат -->
-        </div>
+      <div id="paymentsListContainer">
+        <!-- Рендер списка выплат -->
       </div>
     </div>
 
@@ -239,29 +235,22 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title" style="justify-content: space-between;">
-          <span style="display:flex; align-items:center; gap:8px;">
-            <span class="material-symbols-outlined">account_balance_wallet</span> Командировки и расчеты
-          </span>
-        </div>
-
-        <div class="search-input-wrapper">
-          <span class="material-symbols-outlined">search</span>
-          <input type="search" id="summarySearchInput" name="summary_search_query" class="form-control" placeholder="🔍 Поиск по клиенту, объекту, № заявки..." oninput="renderFilteredSummaryList()" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
-        </div>
-
-        <div class="filter-chips-container">
-          <button type="button" class="filter-chip active" onclick="setSummaryChipFilter('inProgress', this)">⏳ В работе</button>
-          <button type="button" class="filter-chip" onclick="setSummaryChipFilter('sent', this)">📋 В бухгалтерии</button>
-          <button type="button" class="filter-chip" onclick="setSummaryChipFilter('paid', this)">✅ Выплачено</button>
-          <button type="button" class="filter-chip" onclick="setSummaryChipFilter('all', this)">🌐 Все</button>
-        </div>
-
-        <input type="hidden" id="summaryStatusFilter" value="inProgress">
-
-        <div id="summaryList">Загрузка...</div>
+      <!-- ПОИСК И ФИЛЬТРЫ БЕЗ РОДИТЕЛЬСКОЙ КАРТОЧКИ -->
+      <div class="search-input-wrapper">
+        <span class="material-symbols-outlined">search</span>
+        <input type="search" id="summarySearchInput" name="summary_search_query" class="form-control" placeholder="🔍 Поиск по клиенту, объекту, № заявки..." oninput="renderFilteredSummaryList()" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
       </div>
+
+      <div class="filter-chips-container">
+        <button type="button" class="filter-chip active" onclick="setSummaryChipFilter('inProgress', this)">⏳ В работе</button>
+        <button type="button" class="filter-chip" onclick="setSummaryChipFilter('sent', this)">📋 В бухгалтерии</button>
+        <button type="button" class="filter-chip" onclick="setSummaryChipFilter('paid', this)">✅ Выплачено</button>
+        <button type="button" class="filter-chip" onclick="setSummaryChipFilter('all', this)">🌐 Все</button>
+      </div>
+
+      <input type="hidden" id="summaryStatusFilter" value="inProgress">
+
+      <div id="summaryList">Загрузка...</div>
     </div>
 
     <!-- TAB 5: REPORTS & EXPORT -->
@@ -285,7 +274,8 @@
           <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">Выберите тип отчета:</label>
           <select id="reportTypeSelect" class="form-control" style="font-weight: 500;">
             <option value="ao1">📊 Авансовый отчет Excel (Форма АО-1)</option>
-            <option value="pdf">📄 PDF Авансовый отчет с фото чеков</option>
+            <option value="reimbursementDocx">📝 Заявление на возмещение ДС (Word .docx)</option>
+            <option value="pdf">📄 PDF с фото всех чеков</option>
             <option value="allExcel">🌐 Полная сводная ведомость всех поездок (Excel)</option>
           </select>
         </div>
@@ -301,7 +291,7 @@
 
 
       <!-- КАРТОЧКА: СИНХРОНИЗАЦИЯ ЧЕРЕЗ GITHUB GIST -->
-      <div class="card" style="border: 2px solid var(--md-sys-color-primary-container);">
+      <div class="card">
         <div class="card-title">
           <span class="material-symbols-outlined">cloud_sync</span> Синхронизация устройств (GitHub Gist)
         </div>
@@ -323,7 +313,7 @@
         </div>
 
         <!-- GIST ID (для второго устройства) -->
-        <div class="form-group" style="background: #F4F7FF; border: 2px solid var(--md-sys-color-primary-container); padding: 14px; border-radius: 12px; margin-bottom: 16px;">
+        <div class="form-group" style="background: #F4F7FF; padding: 14px; border-radius: 12px; margin-bottom: 16px;">
           <label style="font-weight: 500; color: var(--md-sys-color-primary); display: block; margin-bottom: 6px;">
             Gist ID (для второго устройства):
           </label>
@@ -359,7 +349,7 @@
       </div>
 
       <!-- КАРТОЧКА: НАСТРОЙКИ ТОПЛИВА И АМОРТИЗАЦИИ -->
-      <div class="card" style="border: 2px solid #93C5FD; background: #F8FAFC;">
+      <div class="card" style="background: #F8FAFC;">
         <div class="card-title">
           <span class="material-symbols-outlined" style="color:var(--md-sys-color-primary);">local_gas_station</span> Нормы топлива и амортизация авто
         </div>
