@@ -289,9 +289,9 @@ async function syncWithGithub() {
   const badge = document.getElementById('syncStatusBadge');
   if (badge) badge.innerHTML = '⏳ Идёт синхронизация через GitHub Gist...';
 
-  // Таймаут безопасности (15 секунд), чтобы процесс не висел перманентно при проблемах с сетью
+  // Таймаут безопасности (60 секунд), чтобы процесс не висел перманентно при больших базах с фото
   const timeoutPromise = new Promise((_, reject) => 
-    setTimeout(() => reject(new Error("Превышено время ожидания ответа GitHub (15 сек). Проверьте интернет или VPN.")), 15000)
+    setTimeout(() => reject(new Error("Превышено время ожидания ответа GitHub (60 сек). Проверьте интернет или VPN.")), 60000)
   );
 
   try {
@@ -419,7 +419,7 @@ function compressImage(file) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
         const base64 = compressedDataUrl.split(',')[1];
         resolve({ base64, name: file.name, dataUrl: compressedDataUrl, isImg: true });
       };

@@ -231,10 +231,8 @@ async function readGist(token, gistId) {
   let content = file.content;
 
   if (file.truncated && file.raw_url) {
-    const rawRes = await fetch(file.raw_url, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!rawRes.ok) throw new Error(`Ошибка raw_url: ${rawRes.status}`);
+    const rawRes = await fetch(file.raw_url);
+    if (!rawRes.ok) throw new Error(`Ошибка скачивания файла Gist: ${rawRes.status}`);
     content = await rawRes.text();
   }
 
