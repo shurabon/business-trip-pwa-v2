@@ -1034,7 +1034,7 @@ async function renderFilteredSummaryList(aggregatedData) {
           let fileBadge = '';
           if (exp.receiptBase64) {
             if (exp.receiptName && exp.receiptName.endsWith('.pdf')) {
-              fileBadge = ' <span class="badge" style="background:#E53935; color:#fff; font-size:10px; padding:2px 6px;">📄 PDF</span>';
+              fileBadge = ` <span class="badge" style="background:#E53935; color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64}', '${exp.receiptName || 'doc.pdf'}')">📄 PDF ↗</span>`;
             } else {
               const src = `data:image/jpeg;base64,${exp.receiptBase64}`;
               const title = `${(exp.description || 'Чек').replace(/'/g, "\\'")} — ${exp.amount} руб.`;
@@ -1601,7 +1601,7 @@ async function editExpenseItem(expenseId, tripId) {
   let photoPreviewHtml = '';
   if (exp.receiptBase64) {
     if (exp.receiptName && exp.receiptName.endsWith('.pdf')) {
-      photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0;"><span class="badge" style="background:#E53935; color:#fff;">📄 PDF: ${exp.receiptName}</span></div>`;
+      photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0;"><span class="badge" style="background:#E53935; color:#fff; cursor:pointer; font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64}', '${exp.receiptName || 'doc.pdf'}')"><span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span> 📄 Открыть PDF: ${exp.receiptName}</span></div>`;
     } else {
       const src = `data:image/jpeg;base64,${exp.receiptBase64}`;
       photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0; text-align:center;"><img src="${src}" style="max-width:100%; max-height:160px; border-radius:8px; border:1px solid #888; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${src}', 'Чек')"></div>`;
@@ -2169,13 +2169,23 @@ async function deleteGlobalPaymentItem(paymentId, targetId) {
   }
 }
 
+let activePdfBlobUrl = null;
+
 function openPhotoModal(src, caption) {
   const modal = document.getElementById('photoViewerModal');
   const img = document.getElementById('photoViewerImg');
+  const pdfFrame = document.getElementById('photoViewerPdfFrame');
   const cap = document.getElementById('photoViewerCaption');
-  if (!modal || !img) return;
+  if (!modal) return;
 
-  img.src = src;
+  if (pdfFrame) {
+    pdfFrame.style.display = 'none';
+    pdfFrame.src = '';
+  }
+  if (img) {
+    img.src = src;
+    img.style.display = 'block';
+  }
   if (cap) cap.innerText = caption || 'Чек';
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
@@ -2184,26 +2194,49 @@ function openPhotoModal(src, caption) {
 function openPdfAttachment(base64, fileName) {
   if (!base64) return;
   try {
-    const byteCharacters = atob(base64);
+    const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+    const byteCharacters = atob(cleanBase64);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i++) {
       byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
     const byteArray = new Uint8Array(byteNumbers);
     const blob = new Blob([byteArray], { type: 'application/pdf' });
-    const blobUrl = URL.createObjectURL(blob);
     
-    const win = window.open(blobUrl, '_blank');
-    if (!win) {
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = fileName || 'document.pdf';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
-      }, 2000);
+    if (activePdfBlobUrl) {
+      URL.revokeObjectURL(activePdfBlobUrl);
+    }
+    activePdfBlobUrl = URL.createObjectURL(blob);
+    
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      // На мобильных устройствах надежнее открыть PDF во вкладке или предложить просмотр
+      const win = window.open(activePdfBlobUrl, '_blank');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = activePdfBlobUrl;
+        a.download = fileName || 'document.pdf';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => document.body.removeChild(a), 2000);
+      }
+    } else {
+      // На десктопе отображаем встроенный просмотрщик в модальном окне
+      const modal = document.getElementById('photoViewerModal');
+      const img = document.getElementById('photoViewerImg');
+      const pdfFrame = document.getElementById('photoViewerPdfFrame');
+      const cap = document.getElementById('photoViewerCaption');
+
+      if (img) img.style.display = 'none';
+      if (pdfFrame) {
+        pdfFrame.src = activePdfBlobUrl;
+        pdfFrame.style.display = 'block';
+      }
+      if (cap) {
+        cap.innerHTML = `📄 ${fileName || 'Документ PDF'} &nbsp; <a href="${activePdfBlobUrl}" target="_blank" download="${fileName || 'document.pdf'}" style="color:#FFF; text-decoration:underline; font-weight:600;">Скачать / Открыть в новой вкладке ↗</a>`;
+      }
+      if (modal) modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
     }
   } catch (err) {
     showToast("❌ Ошибка при открытии PDF: " + err.message);
@@ -2212,7 +2245,18 @@ function openPdfAttachment(base64, fileName) {
 
 function closePhotoModal() {
   const modal = document.getElementById('photoViewerModal');
+  const img = document.getElementById('photoViewerImg');
+  const pdfFrame = document.getElementById('photoViewerPdfFrame');
   if (modal) modal.style.display = 'none';
+  if (img) {
+    img.src = '';
+    img.style.display = 'none';
+  }
+  if (pdfFrame) {
+    pdfFrame.src = '';
+    pdfFrame.style.display = 'none';
+  }
+  document.body.style.overflow = '';
 }
 
 function cancelInlineExpenseEdit(expenseId, tripId) {
