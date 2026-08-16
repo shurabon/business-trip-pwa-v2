@@ -126,17 +126,15 @@ header h1 {
   border-radius: var(--radius-card);
   padding: 20px;
   margin-bottom: 16px;
-  border: 1px solid #CBD5E1;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.11), 0 2px 6px rgba(0, 0, 0, 0.06);
+  border: none;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
-              box-shadow 0.3s cubic-bezier(0.2, 0, 0, 1), 
-              border-color 0.3s cubic-bezier(0.2, 0, 0, 1);
+              box-shadow 0.3s cubic-bezier(0.2, 0, 0, 1);
   animation: md3CardPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .card:hover {
-  box-shadow: 0 10px 30px rgba(16, 85, 204, 0.18);
-  border-color: #94A3B8;
+  box-shadow: 0 8px 26px rgba(16, 85, 204, 0.12);
 }
 
 @keyframes md3CardPop {

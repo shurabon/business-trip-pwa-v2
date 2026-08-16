@@ -1,5 +1,5 @@
 import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregatedSummary, formatDateToRu, getTodayRuDate, parseRuDate, getFuelSettings, calculateCarMetrics, markItemDeleted, cleanupDuplicates } from './db.js';
-import { exportToExcel, exportToPDF, exportAO1Excel } from './reports.js';
+import { exportToExcel, exportToPDF, exportAO1Excel, exportReimbursementDocx } from './reports.js';
 import { exportLocalDbToJson, mergeRemoteDbToLocal, uploadToGithubGist, downloadAndMergeFromGithubGist } from './githubSync.js';
 
 let selectedFileBase64 = null;
@@ -1084,7 +1084,7 @@ async function renderFilteredSummaryList(aggregatedData) {
     }
 
     html += `
-      <div id="card-container-${t.id}" class="card" style="margin-bottom: 14px; padding:16px 18px; border-radius:16px; border:1px solid #CBD5E1; box-shadow:0 6px 22px rgba(0,0,0,0.11); cursor:pointer;" onclick="transformCardToEdit('${t.id}')">
+      <div id="card-container-${t.id}" class="card" style="margin-bottom: 14px; padding:16px 18px; border-radius:16px; border:none; box-shadow:0 4px 18px rgba(0,0,0,0.06); cursor:pointer;" onclick="transformCardToEdit('${t.id}')">
         <!-- ОБЫЧНЫЙ ВИД КАРТОЧКИ В СТИЛЕ TIMELINE -->
         <div id="card-view-${t.id}" class="md3-anim-fadein">
           
@@ -1888,7 +1888,10 @@ async function generateSelectedReport() {
       showToast("📊 Авансовый отчет АО-1 (Excel) сформирован!");
     } else if (type === 'pdf') {
       await exportToPDF(tripId);
-      showToast("📕 PDF Авансовый отчет с фото сформирован!");
+      showToast("📕 PDF с фото всех чеков сформирован!");
+    } else if (type === 'reimbursementDocx') {
+      await exportReimbursementDocx(tripId);
+      showToast("📝 Заявление на возмещение ДС (Word) сформировано!");
     }
   } catch (err) {
     showToast("❌ Ошибка при создании отчета: " + err);
@@ -2026,7 +2029,7 @@ async function renderExpensesList() {
     }
 
     html += `
-      <div id="global-expense-card-${exp.id}" class="card" style="margin-bottom:10px; padding:14px; cursor:pointer; background:#FFFFFF; border:1px solid #CBD5E1;" onclick="editExpenseItem(${exp.id}, '${exp.tripId || ''}')">
+      <div id="global-expense-card-${exp.id}" class="card" style="margin-bottom:10px; padding:14px; cursor:pointer; background:#FFFFFF; border:none; box-shadow:0 3px 14px rgba(0,0,0,0.05);" onclick="editExpenseItem(${exp.id}, '${exp.tripId || ''}')">
         <div id="global-expense-view-${exp.id}">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div style="display:flex; align-items:center; gap:10px;">
@@ -2084,7 +2087,7 @@ async function renderPaymentsList() {
     const tripName = trip ? `№${trip.appNo || trip.id} ${trip.client || ''}` : 'Командировка';
 
     html += `
-      <div id="global-payment-card-${pay.id}" class="card" style="margin-bottom:10px; padding:14px; cursor:pointer; background:#FFFFFF; border:1px solid #A7F3D0;" onclick="editPaymentItem(${pay.id}, '${pay.tripId || ''}')">
+      <div id="global-payment-card-${pay.id}" class="card" style="margin-bottom:10px; padding:14px; cursor:pointer; background:#FFFFFF; border:none; box-shadow:0 3px 14px rgba(0,0,0,0.05);" onclick="editPaymentItem(${pay.id}, '${pay.tripId || ''}')">
         <div id="global-payment-view-${pay.id}">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div style="display:flex; align-items:center; gap:10px;">

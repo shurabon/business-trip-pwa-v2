@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, HeadingLevel } from 'docx';
 import { db, getAggregatedSummary, calculateTripDays, calculateCarMetrics, getCostArticleByWorkType } from './db.js';
 
 // 1. Полный сводный экспорт всех поездок в Excel
@@ -353,57 +354,327 @@ export async function exportAO1Excel(tripId) {
   }, 2000);
 }
 
-// 3. Генерация авансового отчета в PDF с прикрепленными фотографиями чеков
+// Вспомогательная функция для определения реальных размеров base64 изображения
+function getImageDimensions(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({ width: img.naturalWidth || img.width, height: img.naturalHeight || img.height });
+    };
+    img.onerror = () => {
+      resolve({ width: 800, height: 600 });
+    };
+    img.src = dataUrl;
+  });
+}
+
+// 3. Генерация чистого PDF с чеками (умная сетка 2x2: до 4 чеков на лист A4, сохранение пропорций)
 export async function exportToPDF(tripId) {
   const trip = await db.trips.get(parseInt(tripId));
   if (!trip) throw new Error('Командировка не найдена');
 
-  const expenses = await db.expenses.where('tripId').equals(String(tripId)).toArray();
+  const allExpenses = await db.expenses.toArray();
+  const expenses = allExpenses.filter(e => String(e.tripId) === String(tripId));
+  const receiptExpenses = expenses.filter(e => e.receiptBase64 && String(e.receiptBase64).trim().length > 0);
 
-  const doc = new jsPDF();
-  
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text(`Advance Report / Trip ID #${trip.id}`, 14, 20);
+  if (receiptExpenses.length === 0) {
+    throw new Error('В этой командировке нет прикрепленных фотографий чеков!');
+  }
 
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Service Application: ${trip.appNo || '-'}`, 14, 30);
-  doc.text(`Client: ${trip.client || '-'}`, 14, 37);
-  doc.text(`Location: ${trip.location || '-'}`, 14, 44);
-  doc.text(`Work Type: ${trip.workType || '-'}`, 14, 51);
-  doc.text(`Dates: ${trip.startDate} - ${trip.finishDate}`, 14, 58);
-  doc.text(`Transport: ${trip.transport || '-'}`, 14, 65);
-
-  let y = 78;
-  doc.setFont("helvetica", "bold");
-  doc.text("Receipts & Expenses:", 14, y);
-  y += 8;
-
-  doc.setFont("helvetica", "normal");
-  let expTotal = 0;
-  expenses.forEach((e, idx) => {
-    expTotal += parseFloat(e.amount) || 0;
-    doc.text(`${idx + 1}. Date: ${e.date} | Amount: ${e.amount} rub. | Desc: ${e.description || ''}`, 14, y);
-    y += 7;
+  // Создаем PDF A4 (210 мм x 297 мм)
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
   });
 
-  y += 5;
-  doc.setFont("helvetica", "bold");
-  doc.text(`Total Receipts: ${expTotal} rub.`, 14, y);
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 10;
+  const gap = 8; // отступ между чеками
 
-  for (const e of expenses) {
-    if (e.receiptBase64) {
+  // Сетка 2 колонки x 2 строки
+  const cellWidth = (pageWidth - margin * 2 - gap) / 2; // ~91 мм
+  const cellHeight = (pageHeight - margin * 2 - gap) / 2; // ~134.5 мм
+
+  for (let i = 0; i < receiptExpenses.length; i++) {
+    const pageIndex = Math.floor(i / 4);
+    const posInPage = i % 4; // 0: верх-лево, 1: верх-право, 2: низ-лево, 3: низ-право
+
+    // Новую страницу добавляем ТОЛЬКО если это не первый элемент и он начинает новую 4-ку
+    if (i > 0 && posInPage === 0) {
       doc.addPage();
-      doc.setFont("helvetica", "bold");
-      doc.text(`Receipt Photo for Expense #${e.id} (${e.amount} rub - ${e.description})`, 14, 15);
-      try {
-        doc.addImage(`data:image/jpeg;base64,${e.receiptBase64}`, 'JPEG', 14, 25, 180, 220);
-      } catch (err) {
-        doc.text(`[Image format error]`, 14, 35);
+    }
+
+    const col = posInPage % 2; // 0 или 1
+    const row = Math.floor(posInPage / 2); // 0 или 1
+
+    const cellX = margin + col * (cellWidth + gap);
+    const cellY = margin + row * (cellHeight + gap);
+
+    const exp = receiptExpenses[i];
+    const dataUrl = exp.receiptBase64.startsWith('data:') 
+      ? exp.receiptBase64 
+      : `data:image/jpeg;base64,${exp.receiptBase64}`;
+
+    try {
+      const dims = await getImageDimensions(dataUrl);
+      const imgRatio = dims.width / dims.height;
+      const cellRatio = cellWidth / cellHeight;
+
+      let drawW, drawH;
+      if (imgRatio > cellRatio) {
+        // Картинка шире ячейки
+        drawW = cellWidth;
+        drawH = cellWidth / imgRatio;
+      } else {
+        // Картинка выше ячейки
+        drawH = cellHeight;
+        drawW = cellHeight * imgRatio;
       }
+
+      // Центрирование картинки внутри её ячейки (сетки 2x2)
+      const posX = cellX + (cellWidth - drawW) / 2;
+      const posY = cellY + (cellHeight - drawH) / 2;
+
+      let format = 'JPEG';
+      if (dataUrl.includes('image/png')) format = 'PNG';
+      if (dataUrl.includes('image/webp')) format = 'WEBP';
+
+      doc.addImage(dataUrl, format, posX, posY, drawW, drawH, undefined, 'FAST');
+    } catch (err) {
+      console.error('Ошибка вставки чека в PDF:', err);
     }
   }
 
-  doc.save(`Trip_Report_ID_${trip.id}_${trip.appNo || 'app'}.pdf`);
+  const appNoClean = (trip.appNo || trip.id || 'поездка').toString().replace(/[/\\?%*:|"<>]/g, '-');
+  const clientClean = (trip.client || '').toString().replace(/[/\\?%*:|"<>]/g, '-');
+  const fileName = `Чеки_${appNoClean}_${clientClean}.pdf`;
+
+  doc.save(fileName);
+}
+
+// 4. Генерация Заявления на возмещение денежных средств в формате Word (.docx)
+export async function exportReimbursementDocx(tripId) {
+  const trip = await db.trips.get(parseInt(tripId));
+  if (!trip) throw new Error('Командировка не найдена');
+
+  const allExpenses = await db.expenses.toArray();
+  const tripExpenses = allExpenses.filter(e => String(e.tripId) === String(tripId));
+  // В заявление на возмещение включаются личные расходы (наличные/карта физлица)
+  const cashExpenses = tripExpenses.filter(e => e.paymentType !== 'cashless');
+
+  const totalAmount = cashExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  const formattedTotal = totalAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const appNo = trip.appNo || `№ ${trip.id}`;
+
+  // Форматирование текущей даты (например: «16» августа 2026 года)
+  const now = new Date();
+  const monthsGenitive = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+  ];
+  const dayStr = String(now.getDate()).padStart(2, '0');
+  const monthStr = monthsGenitive[now.getMonth()];
+  const yearStr = now.getFullYear();
+  const fullDateRu = `«${dayStr}» ${monthStr} ${yearStr} года`;
+
+  // Создаем строки таблицы
+  const tableRows = [
+    new TableRow({
+      tableHeader: true,
+      children: [
+        new TableCell({
+          width: { size: 2200, type: WidthType.DXA },
+          children: [new Paragraph({ children: [new TextRun({ text: "Дата", bold: true, font: "Times New Roman" })] })]
+        }),
+        new TableCell({
+          width: { size: 4800, type: WidthType.DXA },
+          children: [new Paragraph({ children: [new TextRun({ text: "Покупка", bold: true, font: "Times New Roman" })] })]
+        }),
+        new TableCell({
+          width: { size: 2400, type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Сумма, руб с НДС", bold: true, font: "Times New Roman" })] })]
+        })
+      ]
+    })
+  ];
+
+  if (cashExpenses.length === 0) {
+    tableRows.push(
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: trip.startDate || "-", font: "Times New Roman" })] })]
+          }),
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: "Расходы отсутствуют", font: "Times New Roman" })] })]
+          }),
+          new TableCell({
+            children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "0,00", font: "Times New Roman" })] })]
+          })
+        ]
+      })
+    );
+  } else {
+    cashExpenses.forEach(exp => {
+      const amt = (parseFloat(exp.amount) || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      tableRows.push(
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: exp.date || trip.startDate || "-", font: "Times New Roman" })] })]
+            }),
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: exp.description || "Расход по командировке", font: "Times New Roman" })] })]
+            }),
+            new TableCell({
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: amt, font: "Times New Roman" })] })]
+            })
+          ]
+        })
+      );
+    });
+  }
+
+  // Строка Итого
+  tableRows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          columnSpan: 2,
+          children: [new Paragraph({ children: [new TextRun({ text: "Итого", bold: true, font: "Times New Roman" })] })]
+        }),
+        new TableCell({
+          children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formattedTotal, bold: true, font: "Times New Roman" })] })]
+        })
+      ]
+    })
+  );
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: {
+            top: 1134, // ~2 см
+            right: 1134,
+            bottom: 1134,
+            left: 1417 // ~2.5 см
+          }
+        }
+      },
+      children: [
+        // Шапка справа
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          spacing: { line: 276 },
+          children: [new TextRun({ text: "Директору ООО «МИЛЛАБ»", font: "Times New Roman", size: 24 })]
+        }),
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          spacing: { line: 276 },
+          children: [new TextRun({ text: "Жидкову Д.В.", font: "Times New Roman", size: 24 })]
+        }),
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          spacing: { line: 276 },
+          children: [new TextRun({ text: "от сервисного инженера", font: "Times New Roman", size: 24 })]
+        }),
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          spacing: { line: 276, after: 400 },
+          children: [new TextRun({ text: "Данилова А.Д.", font: "Times New Roman", size: 24 })]
+        }),
+
+        // Заголовок
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 200, after: 100 },
+          children: [new TextRun({ text: "ЗАЯВЛЕНИЕ", bold: true, font: "Times New Roman", size: 28 })]
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 360 },
+          children: [new TextRun({ text: "на возмещение денежных средств", bold: true, font: "Times New Roman", size: 24 })]
+        }),
+
+        // Текст заявления (универсальная формулировка)
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFY,
+          spacing: { line: 360, after: 240 },
+          children: [
+            new TextRun({
+              text: `Прошу возместить денежные средства в размере ${formattedTotal} руб., потраченные для выполнения работ по заявке № ${appNo}. Подтверждающие документы и чеки прилагаются.`,
+              font: "Times New Roman",
+              size: 24
+            })
+          ]
+        }),
+
+        // Таблица расходов
+        new Table({
+          width: { size: 9400, type: WidthType.DXA },
+          rows: tableRows
+        }),
+
+        // Реквизиты
+        new Paragraph({
+          spacing: { before: 360, line: 280 },
+          children: [new TextRun({ text: "Денежные средства прошу перечислить на банковскую карту по следующим реквизитам:", font: "Times New Roman", size: 24 })]
+        }),
+        new Paragraph({
+          spacing: { line: 260 },
+          children: [new TextRun({ text: "Валюта получаемого перевода: Российский рубль (RUB)", font: "Times New Roman", size: 22 })]
+        }),
+        new Paragraph({
+          spacing: { line: 260 },
+          children: [new TextRun({ text: "Получатель: Данилов Александр Дмитриевич", font: "Times New Roman", size: 22 })]
+        }),
+        new Paragraph({
+          spacing: { line: 260 },
+          children: [new TextRun({ text: "Номер счёта: 40817810316473504942", font: "Times New Roman", size: 22 })]
+        }),
+        new Paragraph({
+          spacing: { line: 260 },
+          children: [new TextRun({ text: "Банк получателя: УРАЛЬСКИЙ БАНК ПАО СБЕРБАНК", font: "Times New Roman", size: 22 })]
+        }),
+        new Paragraph({
+          spacing: { line: 260 },
+          children: [new TextRun({ text: "БИК: 046577674", font: "Times New Roman", size: 22 })]
+        }),
+        new Paragraph({
+          spacing: { line: 260 },
+          children: [new TextRun({ text: "Корр. счёт: 30101810500000000674", font: "Times New Roman", size: 22 })]
+        }),
+        new Paragraph({
+          spacing: { line: 260, after: 400 },
+          children: [new TextRun({ text: "ИНН: 7707083893", font: "Times New Roman", size: 22 })]
+        }),
+
+        // Подпись и дата
+        new Paragraph({
+          spacing: { before: 200 },
+          children: [
+            new TextRun({ text: "Сервисный инженер Данилов А.Д.   ___________________   ", font: "Times New Roman", size: 24 }),
+            new TextRun({ text: fullDateRu, font: "Times New Roman", size: 24 })
+          ]
+        })
+      ]
+    }]
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const appNoClean = (trip.appNo || trip.id || 'заявка').toString().replace(/[/\\?%*:|"<>]/g, '-');
+  a.download = `Заявление_на_возмещение_ДС_${appNoClean}.docx`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 2000);
 }
