@@ -914,8 +914,11 @@ function setSummaryChipFilter(val, btn) {
 }
 
 async function renderFilteredSummaryList(aggregatedData) {
-  const filterVal = document.getElementById('summaryStatusFilter')?.value || 'inProgress';
-  const searchQuery = (document.getElementById('summarySearchInput')?.value || '').toLowerCase().trim();
+  const rawSearch = (document.getElementById('summarySearchInput')?.value || '').trim();
+  const token = localStorage.getItem('github_token') || '';
+  const gistId = localStorage.getItem('github_gist_id') || '';
+  const isAutofillGarbage = (token && rawSearch === token) || (gistId && rawSearch === gistId) || (rawSearch.length >= 32 && !rawSearch.includes(' ') && /^[a-f0-9]+$/i.test(rawSearch));
+  const searchQuery = isAutofillGarbage ? '' : rawSearch.toLowerCase();
   const aggregated = aggregatedData || await getAggregatedSummary();
   const container = document.getElementById('summaryList');
   if (!container) return;
@@ -2531,3 +2534,30 @@ async function handleQuickAddPayment(event) {
   closeQuickPaymentModal();
   await loadData();
 }
+
+// Защита поля поиска от автозаполнения браузером (Gist ID / токенами)
+function protectSearchInputFromAutofill() {
+  const searchInput = document.getElementById('summarySearchInput');
+  if (!searchInput) return;
+
+  const sanitizeSearch = () => {
+    const val = searchInput.value.trim();
+    const token = localStorage.getItem('github_token') || '';
+    const gistId = localStorage.getItem('github_gist_id') || '';
+
+    // Если браузер подставил токен или gistId в поиск - очищаем
+    if ((token && val === token) || (gistId && val === gistId) || (val.length >= 32 && !val.includes(' ') && /^[a-f0-9]+$/i.test(val))) {
+      searchInput.value = '';
+      renderFilteredSummaryList();
+    }
+  };
+
+  searchInput.addEventListener('focus', sanitizeSearch);
+  searchInput.addEventListener('change', sanitizeSearch);
+  setTimeout(sanitizeSearch, 300);
+  setTimeout(sanitizeSearch, 1000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  protectSearchInputFromAutofill();
+});
