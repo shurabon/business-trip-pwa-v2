@@ -152,6 +152,7 @@ function setupDefaults() {
   window.toggleHomeBalanceDetails = toggleHomeBalanceDetails;
   window.goToStatusFilter = goToStatusFilter;
   window.goToTripCard = goToTripCard;
+  window.deleteTrip = deleteTrip;
   window.openQuickPaymentModal = openQuickPaymentModal;
   window.closeQuickPaymentModal = closeQuickPaymentModal;
   window.handleQuickAddPayment = handleQuickAddPayment;
@@ -859,8 +860,8 @@ function renderHeroBalanceWidget(aggregated) {
 }
 
 async function setTripStatus(tripId, newStatus) {
-  if (newStatus === 'не подготовлен' || newStatus === 'Выплачен') {
-    showToast("ℹ️ Статусы 'Не подготовлен' и 'Выплачен' устанавливаются автоматически");
+  if (newStatus === 'Выплачен') {
+    showToast("ℹ️ Статус 'Выплачен' устанавливается автоматически при полной выплате всей суммы");
     return;
   }
 
@@ -887,7 +888,7 @@ function renderStepperHtml(t) {
 
   return `
     <div class="trip-stepper" onclick="event.stopPropagation();">
-      <div class="stepper-step step-disabled ${isStep1Active ? 'active' : ''}" title="1. Заявка создана (автоматически)" style="cursor: default;">
+      <div class="stepper-step ${isStep1Active ? 'active' : ''}" title="1. Переключить на: не подготовлен" onclick="setTripStatus(${t.id}, 'не подготовлен')">
         <div class="stepper-dot">1</div>
         <span>не подготовлен</span>
       </div>
@@ -1483,6 +1484,12 @@ async function transformCardToEdit(tripId) {
             Отмена
           </button>
         </div>
+
+        <div style="margin-top:6px; margin-bottom:14px; text-align:center;">
+          <button type="button" class="btn btn-secondary" style="color:#E53935; border:1px solid #E53935; width:100%; padding:10px; font-size:13px; display:inline-flex; align-items:center; justify-content:center; gap:6px;" onclick="deleteTrip(${t.id})">
+            <span class="material-symbols-outlined" style="font-size:18px;">delete_forever</span> 🗑 Удалить командировку
+          </button>
+        </div>
       </form>
 
       <!-- УПРАВЛЕНИЕ РАСХОДАМИ И ВЫПЛАТАМИ ЭТОЙ КОМАНДИРОВКИ -->
@@ -1549,6 +1556,41 @@ function closeEditBottomSheet(highlightTargetId) {
       }
     }, 100);
   }
+}
+
+async function deleteTrip(tripId) {
+  const trip = await db.trips.get(parseInt(tripId));
+  if (!trip) return;
+
+  const appName = trip.appNo ? `№${trip.appNo}` : `ID:${trip.id}`;
+  const clientName = trip.client ? ` (${trip.client})` : '';
+
+  if (!confirm(`Вы действительно хотите удалить командировку ${appName}${clientName}?\n\nВсе связанные с ней расходы и выплаты также будут удалены.`)) {
+    return;
+  }
+
+  // 1. Помечаем командировку как удаленную для синхронизации
+  markItemDeleted('trips', trip);
+
+  // 2. Находим и удаляем все связанные расходы
+  const tripExpenses = await db.expenses.where('tripId').equals(String(tripId)).toArray();
+  for (const exp of tripExpenses) {
+    markItemDeleted('expenses', exp);
+    await db.expenses.delete(exp.id);
+  }
+
+  // 3. Находим и удаляем все связанные выплаты
+  const tripPayments = await db.payments.where('tripId').equals(String(tripId)).toArray();
+  for (const pay of tripPayments) {
+    markItemDeleted('payments', pay);
+    await db.payments.delete(pay.id);
+  }
+
+  // 4. Удаляем саму командировку
+  await db.trips.delete(parseInt(tripId));
+
+  showToast(`🗑 Командировка ${appName} удалена!`);
+  await loadData();
 }
 
 async function deleteExpenseItem(expenseId, tripId, targetId) {

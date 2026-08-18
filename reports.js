@@ -190,7 +190,11 @@ export async function exportAO1Excel(tripId) {
   ws.mergeCells(`A${totalExpenseRow}:C${totalExpenseRow}`);
   ws.getCell(`A${totalExpenseRow}`).value = 'Итого:';
   ws.getCell(`A${totalExpenseRow}`).font = { bold: true };
-  ws.getCell(`D${totalExpenseRow}`).value = { formula: `SUM(D6:D${totalExpenseRow - 1})` };
+  if (totalExpenseRow > 9) {
+    ws.getCell(`D${totalExpenseRow}`).value = { formula: `SUM(D9:D${totalExpenseRow - 1})` };
+  } else {
+    ws.getCell(`D${totalExpenseRow}`).value = 0;
+  }
   ws.getCell(`D${totalExpenseRow}`).font = { bold: true };
   rowIdx++;
 
@@ -282,7 +286,11 @@ export async function exportAO1Excel(tripId) {
   const cashlessTotalRow = rowIdx;
   ws.getCell(`B${cashlessTotalRow}`).value = 'Всего';
   ws.getCell(`B${cashlessTotalRow}`).font = { bold: true };
-  ws.getCell(`D${cashlessTotalRow}`).value = { formula: `SUM(D${startCashlessDataRow}:D${cashlessTotalRow - 1})` };
+  if (cashlessExpenses.length > 0) {
+    ws.getCell(`D${cashlessTotalRow}`).value = { formula: `SUM(D${startCashlessDataRow}:D${cashlessTotalRow - 1})` };
+  } else {
+    ws.getCell(`D${cashlessTotalRow}`).value = 0;
+  }
   ws.getCell(`D${cashlessTotalRow}`).font = { bold: true };
   rowIdx += 2;
 
