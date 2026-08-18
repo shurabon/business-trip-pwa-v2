@@ -1373,3 +1373,32 @@ header h1 {
   background: #E3F2FD;
   color: #1565C0;
 }
+
+/* Мягкий акцент при переходе к карточке командировки */
+.trip-card-gentle-highlight {
+  animation: gentlePulseGlow 2.2s ease-out forwards;
+}
+
+@keyframes gentlePulseGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 85, 204, 0);
+    border-color: #CBD5E1;
+    transform: scale(1);
+  }
+  25% {
+    box-shadow: 0 0 0 4px rgba(16, 85, 204, 0.25), 0 8px 24px rgba(16, 85, 204, 0.18);
+    border-color: var(--md-sys-color-primary);
+    transform: scale(1.01);
+  }
+  60% {
+    box-shadow: 0 0 0 3px rgba(16, 85, 204, 0.15), 0 4px 16px rgba(16, 85, 204, 0.12);
+    border-color: var(--md-sys-color-primary);
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    border-color: #CBD5E1;
+    transform: scale(1);
+  }
+}
+

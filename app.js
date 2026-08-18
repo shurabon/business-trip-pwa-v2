@@ -2553,8 +2553,8 @@ async function goToTripCard(tripId) {
     const card = document.getElementById(`card-container-${tripId}`);
     if (card) {
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      card.classList.add('selected-item-inverted');
-      setTimeout(() => card.classList.remove('selected-item-inverted'), 2000);
+      card.classList.add('trip-card-gentle-highlight');
+      setTimeout(() => card.classList.remove('trip-card-gentle-highlight'), 2300);
     }
   }, 200);
 }
