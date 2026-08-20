@@ -5,6 +5,8 @@ import { syncWithSupabase, uploadReceiptToStorage } from './supabaseSync.js';
 
 let selectedFileBase64 = null;
 let selectedFileName = null;
+let autoSyncTimer = null;
+let isSyncInProgress = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
   updateNetworkStatus();
@@ -17,20 +19,75 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (savedTab) {
     switchTab(savedTab);
   }
+
+  // 1. Автоматическая фоновая синхронизация при запуске
+  scheduleAutoSync(500);
+
+  // 2. Автоматическая синхронизация при возврате на вкладку / разблокировке экрана
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && navigator.onLine) {
+      scheduleAutoSync(1000);
+    }
+  });
+  window.addEventListener('focus', () => {
+    if (navigator.onLine) scheduleAutoSync(1000);
+  });
 });
 
+// Запуск мягкой тихой синхронизации в фоне
+export function scheduleAutoSync(delayMs = 2500) {
+  if (!navigator.onLine) return;
+  if (autoSyncTimer) clearTimeout(autoSyncTimer);
+  autoSyncTimer = setTimeout(async () => {
+    if (isSyncInProgress) return;
+    try {
+      isSyncInProgress = true;
+      updateSyncHeaderIndicator('syncing');
+      const res = await syncWithSupabase();
+      updateSyncHeaderIndicator('synced', res.tripsCount);
+      // Тихо обновляем UI если данные изменились
+      await loadData();
+    } catch (err) {
+      console.warn("Silent background auto-sync warning:", err);
+      updateSyncHeaderIndicator('idle');
+    } finally {
+      isSyncInProgress = false;
+    }
+  }, delayMs);
+}
 
-function updateNetworkStatus() {
+function updateSyncHeaderIndicator(state, count) {
   const badge = document.getElementById('networkStatusBadge');
   if (!badge) return;
-  if (navigator.onLine) {
-    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">wifi</span> Online`;
+
+  if (!navigator.onLine) {
+    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size:15px;">cloud_off</span> Офлайн`;
+    badge.style.background = '#FCE8E6';
+    badge.style.color = '#C5221F';
+    return;
+  }
+
+  if (state === 'syncing') {
+    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size:15px; animation: spin 1.2s linear infinite;">sync</span> Синхронизация...`;
+    badge.style.background = '#E8F0FE';
+    badge.style.color = '#1A73E8';
+  } else if (state === 'synced') {
+    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size:15px;">cloud_done</span> В облаке`;
     badge.style.background = '#E6F4EA';
     badge.style.color = '#137333';
   } else {
-    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">wifi_off</span> Offline`;
-    badge.style.background = '#FCE8E6';
-    badge.style.color = '#C5221F';
+    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size:15px;">cloud_queue</span> Онлайн`;
+    badge.style.background = '#E6F4EA';
+    badge.style.color = '#137333';
+  }
+}
+
+function updateNetworkStatus() {
+  if (navigator.onLine) {
+    updateSyncHeaderIndicator('synced');
+    scheduleAutoSync(500);
+  } else {
+    updateSyncHeaderIndicator('offline');
   }
 }
 window.addEventListener('online', updateNetworkStatus);
@@ -1228,6 +1285,7 @@ async function handleCreateTrip(event) {
   setupDefaults();
   toggleAutoFields('tripTransport', 'autoFields');
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 async function handleAddExpense(event) {
@@ -1255,6 +1313,7 @@ async function handleAddExpense(event) {
   setupDefaults();
   clearReceiptPhoto();
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 async function handleAddPayment(event) {
@@ -1287,6 +1346,7 @@ async function handleAddPayment(event) {
   document.getElementById('paymentForm').reset();
   setupDefaults();
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 let activeTripId = null;
@@ -1615,6 +1675,7 @@ async function deleteTrip(tripId) {
 
   showToast(`🗑 Командировка ${appName} удалена!`);
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 async function deleteExpenseItem(expenseId, tripId, targetId) {
@@ -1625,6 +1686,7 @@ async function deleteExpenseItem(expenseId, tripId, targetId) {
     closeEditBottomSheet(targetId);
     showToast("🗑 Расход удален!");
     await loadData();
+    scheduleAutoSync(1500);
   }
 }
 
@@ -1636,6 +1698,7 @@ async function deletePaymentItem(paymentId, tripId, targetId) {
     closeEditBottomSheet(targetId);
     showToast("🗑 Выплата удалена!");
     await loadData();
+    scheduleAutoSync(1500);
   }
 }
 
@@ -1819,6 +1882,7 @@ async function saveInlineExpense(expenseId, tripId, targetId) {
   showToast("✅ Расход обновлен!");
   delete inlinePhotoState[expenseId];
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 async function editPaymentItem(paymentId, tripId) {
@@ -1908,6 +1972,7 @@ async function saveInlinePayment(paymentId, tripId, targetId) {
   closeEditBottomSheet(targetId);
   showToast("✅ Выплата обновлена!");
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 function restoreCardView(tripId) {
@@ -1944,6 +2009,7 @@ async function handleInlineUpdateTrip(event, tripId) {
 
   showToast("✅ Изменения сохранены!");
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 async function generateSelectedReport() {
@@ -2452,6 +2518,7 @@ async function handleQuickAddExpense(event) {
   showToast("✅ Чек сохранен!");
   closeQuickAddModal();
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 // ===== SPEED DIAL LOGIC FOR MOBILE =====
@@ -2540,6 +2607,7 @@ async function handleCreateTripModal(event) {
   showToast("✅ Поездка создана!");
   closeCreateTripModal();
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 // ===== DASHBOARD INTERACTION HELPERS =====
@@ -2660,6 +2728,7 @@ async function handleQuickAddPayment(event) {
   showToast("✅ Выплата зафиксирована!");
   closeQuickPaymentModal();
   await loadData();
+  scheduleAutoSync(1500);
 }
 
 // Защита поля поиска от автозаполнения браузером (Gist ID / токенами)
