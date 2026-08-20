@@ -1,6 +1,7 @@
 import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregatedSummary, formatDateToRu, getTodayRuDate, parseRuDate, getFuelSettings, calculateCarMetrics, markItemDeleted, cleanupDuplicates } from './db.js';
 import { exportToExcel, exportToPDF, exportAO1Excel, exportReimbursementDocx } from './reports.js';
 import { exportLocalDbToJson, mergeRemoteDbToLocal, uploadToGithubGist, downloadAndMergeFromGithubGist } from './githubSync.js';
+import { syncWithSupabase, uploadReceiptToStorage } from './supabaseSync.js';
 
 let selectedFileBase64 = null;
 let selectedFileName = null;
@@ -156,6 +157,7 @@ function setupDefaults() {
   window.openQuickPaymentModal = openQuickPaymentModal;
   window.closeQuickPaymentModal = closeQuickPaymentModal;
   window.handleQuickAddPayment = handleQuickAddPayment;
+  window.executeCloudSync = executeCloudSync;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -277,6 +279,26 @@ function switchTab(tabId) {
     renderExpensesList();
   } else if (tabId === 'paymentTab') {
     renderPaymentsList();
+  }
+}
+
+async function executeCloudSync() {
+  const badge = document.getElementById('syncStatusBadge');
+  if (badge) badge.innerHTML = '⏳ Идёт облачная синхронизация через Supabase Cloud...';
+
+  try {
+    const res = await syncWithSupabase();
+    const timeStr = new Date().toLocaleTimeString('ru-RU');
+    if (badge) {
+      badge.innerHTML = `🟢 Синхронизировано через Supabase в ${timeStr}. Поездок в базе: ${res.tripsCount}`;
+    }
+    showToast(`⚡ Облачная синхронизация завершена! Поездок: ${res.tripsCount}`);
+    await loadData();
+  } catch (err) {
+    console.error("Supabase sync failed:", err);
+    const errMsg = err?.message || String(err);
+    if (badge) badge.innerHTML = `🔴 Ошибка Supabase: ${errMsg}`;
+    showToast("❌ Ошибка синхронизации Supabase: " + errMsg);
   }
 }
 
@@ -1033,13 +1055,15 @@ async function renderFilteredSummaryList(aggregatedData) {
         detailsListHtml += '<strong style="font-size:12px; color:var(--md-sys-color-primary); display:block; margin:6px 0 4px;">🧾 ЧЕКИ И РАСХОДЫ:</strong>';
         tripExpenses.forEach(exp => {
           let fileBadge = '';
-          if (exp.receiptBase64) {
-            if (exp.receiptName && exp.receiptName.endsWith('.pdf')) {
-              fileBadge = ` <span class="badge" style="background:#E53935; color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64}', '${exp.receiptName || 'doc.pdf'}')">📄 PDF ↗</span>`;
+          const receiptSrc = exp.receiptUrl || (exp.receiptBase64 ? `data:image/jpeg;base64,${exp.receiptBase64}` : '');
+          const isPdf = (exp.receiptName && exp.receiptName.endsWith('.pdf')) || (exp.receiptUrl && exp.receiptUrl.endsWith('.pdf'));
+
+          if (receiptSrc || exp.receiptBase64) {
+            if (isPdf) {
+              fileBadge = ` <span class="badge" style="background:#E53935; color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64 || ''}', '${exp.receiptName || 'doc.pdf'}', '${exp.receiptUrl || ''}')">📄 PDF ↗</span>`;
             } else {
-              const src = `data:image/jpeg;base64,${exp.receiptBase64}`;
               const title = `${(exp.description || 'Чек').replace(/'/g, "\\'")} — ${exp.amount} руб.`;
-              fileBadge = ` <span class="badge" style="background:var(--md-sys-color-primary); color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${src}', '${title}')">📷 Фото 🔍</span>`;
+              fileBadge = ` <span class="badge" style="background:var(--md-sys-color-primary); color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${receiptSrc}', '${title}')">📷 Фото 🔍</span>`;
             }
           }
           detailsListHtml += `
@@ -1641,12 +1665,14 @@ async function editExpenseItem(expenseId, tripId) {
   };
 
   let photoPreviewHtml = '';
-  if (exp.receiptBase64) {
-    if (exp.receiptName && exp.receiptName.endsWith('.pdf')) {
-      photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0;"><span class="badge" style="background:#E53935; color:#fff; cursor:pointer; font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64}', '${exp.receiptName || 'doc.pdf'}')"><span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span> 📄 Открыть PDF: ${exp.receiptName}</span></div>`;
+  const receiptSrc = exp.receiptUrl || (exp.receiptBase64 ? `data:image/jpeg;base64,${exp.receiptBase64}` : '');
+  const isPdf = (exp.receiptName && exp.receiptName.endsWith('.pdf')) || (exp.receiptUrl && exp.receiptUrl.endsWith('.pdf'));
+
+  if (receiptSrc || exp.receiptBase64) {
+    if (isPdf) {
+      photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0;"><span class="badge" style="background:#E53935; color:#fff; cursor:pointer; font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64 || ''}', '${exp.receiptName || 'doc.pdf'}', '${exp.receiptUrl || ''}')"><span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span> 📄 Открыть PDF: ${exp.receiptName || 'Документ'}</span></div>`;
     } else {
-      const src = `data:image/jpeg;base64,${exp.receiptBase64}`;
-      photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0; text-align:center;"><img src="${src}" style="max-width:100%; max-height:160px; border-radius:8px; border:1px solid #888; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${src}', 'Чек')"></div>`;
+      photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0; text-align:center;"><img src="${receiptSrc}" style="max-width:100%; max-height:160px; border-radius:8px; border:1px solid #888; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${receiptSrc}', 'Чек')"></div>`;
     }
   } else {
     photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0; color:#888; font-size:12px; text-align:center;">Фото не прикреплено</div>`;
@@ -2058,24 +2084,26 @@ async function renderExpensesList() {
     let fileBadge = '';
     let previewContent = '';
 
-    if (exp.receiptBase64) {
-      if (exp.receiptName && exp.receiptName.endsWith('.pdf')) {
+    const receiptSrc = exp.receiptUrl || (exp.receiptBase64 ? `data:image/jpeg;base64,${exp.receiptBase64}` : '');
+    const isPdf = (exp.receiptName && exp.receiptName.endsWith('.pdf')) || (exp.receiptUrl && exp.receiptUrl.endsWith('.pdf'));
+
+    if (receiptSrc || exp.receiptBase64) {
+      if (isPdf) {
         icon = 'picture_as_pdf';
-        fileBadge = ` <span class="badge" style="background:#E53935; color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64}', '${exp.receiptName || 'doc.pdf'}')">📄 PDF ↗</span>`;
+        fileBadge = ` <span class="badge" style="background:#E53935; color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64 || ''}', '${exp.receiptName || 'doc.pdf'}', '${exp.receiptUrl || ''}')">📄 PDF ↗</span>`;
         previewContent = `
           <div style="margin-top:8px; display:flex; align-items:center; gap:8px;">
-            <button type="button" class="btn btn-sm btn-secondary" style="background:#E53935; color:#fff; border:none; padding:6px 12px; font-size:12px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64}', '${exp.receiptName || 'doc.pdf'}')">
+            <button type="button" class="btn btn-sm btn-secondary" style="background:#E53935; color:#fff; border:none; padding:6px 12px; font-size:12px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;" onclick="event.stopPropagation(); openPdfAttachment('${exp.receiptBase64 || ''}', '${exp.receiptName || 'doc.pdf'}', '${exp.receiptUrl || ''}')">
               <span class="material-symbols-outlined" style="font-size:16px;">picture_as_pdf</span> 👁 Просмотреть / Открыть PDF (${exp.receiptName || 'документ'})
             </button>
           </div>
         `;
       } else {
-        const src = `data:image/jpeg;base64,${exp.receiptBase64}`;
         const title = `${(exp.description || 'Чек').replace(/'/g, "\\'")} — ${exp.amount} руб.`;
-        fileBadge = ` <span class="badge" style="background:var(--md-sys-color-primary); color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${src}', '${title}')">📷 Фото 🔍</span>`;
+        fileBadge = ` <span class="badge" style="background:var(--md-sys-color-primary); color:#fff; font-size:10px; padding:2px 6px; cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal('${receiptSrc}', '${title}')">📷 Фото 🔍</span>`;
         previewContent = `
           <div style="margin-top:8px; text-align:center;">
-            <img src="data:image/jpeg;base64,${exp.receiptBase64}" style="max-width:100%; max-height:220px; border-radius:10px; border:2px solid var(--md-sys-color-primary-container); cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal(this.src, '${(exp.description || 'Чек').replace(/'/g, "\\'")} — ${exp.amount} руб.')">
+            <img src="${receiptSrc}" style="max-width:100%; max-height:220px; border-radius:10px; border:2px solid var(--md-sys-color-primary-container); cursor:pointer;" onclick="event.stopPropagation(); openPhotoModal(this.src, '${(exp.description || 'Чек').replace(/'/g, "\\'")} — ${exp.amount} руб.')">
             <div style="font-size:11px; color:var(--md-sys-color-primary); margin-top:4px; font-weight:500;">🔍 Нажмите на фото для просмотра во весь экран</div>
           </div>
         `;
@@ -2233,37 +2261,41 @@ function openPhotoModal(src, caption) {
   document.body.style.overflow = 'hidden';
 }
 
-function openPdfAttachment(base64, fileName) {
-  if (!base64) return;
+function openPdfAttachment(base64, fileName, directUrl) {
   try {
-    const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
-    const byteCharacters = atob(cleanBase64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    let pdfUrl = directUrl || '';
+
+    if (!pdfUrl && base64) {
+      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+      const byteCharacters = atob(cleanBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      
+      if (activePdfBlobUrl) {
+        URL.revokeObjectURL(activePdfBlobUrl);
+      }
+      activePdfBlobUrl = URL.createObjectURL(blob);
+      pdfUrl = activePdfBlobUrl;
     }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: 'application/pdf' });
-    
-    if (activePdfBlobUrl) {
-      URL.revokeObjectURL(activePdfBlobUrl);
-    }
-    activePdfBlobUrl = URL.createObjectURL(blob);
+
+    if (!pdfUrl) return;
     
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
-      // На мобильных устройствах надежнее открыть PDF во вкладке или предложить просмотр
-      const win = window.open(activePdfBlobUrl, '_blank');
+      const win = window.open(pdfUrl, '_blank');
       if (!win) {
         const a = document.createElement('a');
-        a.href = activePdfBlobUrl;
+        a.href = pdfUrl;
         a.download = fileName || 'document.pdf';
         document.body.appendChild(a);
         a.click();
         setTimeout(() => document.body.removeChild(a), 2000);
       }
     } else {
-      // На десктопе отображаем встроенный просмотрщик в модальном окне
       const modal = document.getElementById('photoViewerModal');
       const img = document.getElementById('photoViewerImg');
       const pdfFrame = document.getElementById('photoViewerPdfFrame');
@@ -2271,11 +2303,11 @@ function openPdfAttachment(base64, fileName) {
 
       if (img) img.style.display = 'none';
       if (pdfFrame) {
-        pdfFrame.src = activePdfBlobUrl;
+        pdfFrame.src = pdfUrl;
         pdfFrame.style.display = 'block';
       }
       if (cap) {
-        cap.innerHTML = `📄 ${fileName || 'Документ PDF'} &nbsp; <a href="${activePdfBlobUrl}" target="_blank" download="${fileName || 'document.pdf'}" style="color:#FFF; text-decoration:underline; font-weight:600;">Скачать / Открыть в новой вкладке ↗</a>`;
+        cap.innerHTML = `📄 ${fileName || 'Документ PDF'} &nbsp; <a href="${pdfUrl}" target="_blank" download="${fileName || 'document.pdf'}" style="color:#FFF; text-decoration:underline; font-weight:600;">Скачать / Открыть в новой вкладке ↗</a>`;
       }
       if (modal) modal.style.display = 'flex';
       document.body.style.overflow = 'hidden';
