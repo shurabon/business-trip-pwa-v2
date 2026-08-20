@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-H_A-Fois.js"></script>
+  <script type="module" crossorigin src="./assets/index-D7r8QaMY.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-Bc7lH2Pk.css">
 </head>
 <body>
@@ -299,42 +299,53 @@
           Данные автоматически синхронизируются между всеми устройствами через ваш приватный GitHub Gist. Работает без прокси и ограничений сети.
         </p>
 
-        <!-- ВВОД GITHUB ТОКЕНА -->
-        <div class="form-group" style="background: #F4F7FF; padding: 12px; border-radius: 12px; margin-bottom: 14px;">
-          <label>GitHub Personal Access Token (scope: gist)</label>
-          <p style="font-size: 12px; color: #666; margin: 4px 0 8px;">
-            Создайте на <strong>github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)</strong>. Права: только <code>gist</code>.
-          </p>
-          <div style="display:flex; gap:8px; margin-top:4px;">
-            <input type="password" id="githubTokenInput" class="form-control" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="font-family: monospace;">
-            <button type="button" class="btn btn-sm" style="width: auto; min-width: max-content;" onclick="saveGithubToken()">💾 Сохранить</button>
+        <!-- СУПЕРБЫСТРАЯ ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ SUPABASE -->
+        <div style="background: linear-gradient(135deg, #1055CC 0%, #1565C0 100%); color: #fff; padding: 18px; border-radius: 14px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(16,85,204,0.25);">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            <span class="material-symbols-outlined" style="font-size:24px; color:#FFD54F;">bolt</span>
+            <strong style="font-size:16px;">Облачная синхронизация Supabase</strong>
           </div>
-        </div>
-
-        <!-- GIST ID (для второго устройства) -->
-        <div class="form-group" style="background: #F4F7FF; padding: 14px; border-radius: 12px; margin-bottom: 16px;">
-          <label style="font-weight: 500; color: var(--md-sys-color-primary); display: block; margin-bottom: 6px;">
-            Gist ID (для второго устройства):
-          </label>
-          <p style="font-size: 12px; color: #666; margin: 0 0 8px;">
-            После первой синхронизации на ПК скопируйте Gist ID и введите его на смартфоне.
+          <p style="font-size: 12px; color: #E3F2FD; margin: 0 0 14px; line-height: 1.4;">
+            Мгновенный обмен данными между ПК и телефоном без зависаний. Чеки и PDF загружаются в быстрое облачное хранилище.
           </p>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="githubGistIdInput" class="form-control" placeholder="Вставьте Gist ID со второго устройства" style="font-family: monospace;">
-            <button class="btn btn-sm" style="width: auto; min-width: max-content;" onclick="saveGithubGistId()">💾 Сохранить</button>
-          </div>
-        </div>
-
-        <!-- КНОПКА СИНХРОНИЗАЦИИ -->
-        <div style="margin-bottom: 14px;">
-          <button class="btn" style="width:100%;" onclick="syncWithGithub()">
-            <span class="material-symbols-outlined">sync</span> Синхронизировать ПК ↔ Телефон сейчас
+          <button type="button" class="btn" style="background:#FFFFFF; color:var(--md-sys-color-primary); font-weight:700; width:100%; border:none; box-shadow:0 2px 8px rgba(0,0,0,0.15);" onclick="executeCloudSync()">
+            <span class="material-symbols-outlined">sync</span> ⚡ Синхронизировать сейчас (Supabase)
           </button>
         </div>
 
-        <div id="syncStatusBadge" style="font-size: 13px; font-weight: 500; color: #666; margin-bottom: 14px;">
-          Статус: Укажите GitHub токен и нажмите «Синхронизировать»
+        <div id="syncStatusBadge" style="font-size: 13px; font-weight: 500; color: #444; margin-bottom: 14px; background:#F1F5F9; padding:8px 12px; border-radius:8px;">
+          Статус: Готово к синхронизации через Supabase Cloud
         </div>
+
+        <!-- Резервная синхронизация через GitHub Gist (скрытый аккордеон) -->
+        <details style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;">
+          <summary style="font-size: 13px; font-weight: 600; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: space-between;">
+            <span>🐙 Резервная синхронизация через GitHub Gist</span>
+            <span class="material-symbols-outlined" style="font-size: 18px;">expand_more</span>
+          </summary>
+          
+          <div style="padding-top: 12px;">
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label style="font-size: 12px;">GitHub Personal Access Token (scope: gist)</label>
+              <div style="display:flex; gap:8px; margin-top:4px;">
+                <input type="password" id="githubTokenInput" class="form-control" placeholder="ghp_xxxxxxxxxxxx" style="font-family: monospace; font-size:12px;">
+                <button type="button" class="btn btn-sm" style="width: auto; min-width: max-content;" onclick="saveGithubToken()">💾</button>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label style="font-size: 12px;">Gist ID:</label>
+              <div style="display:flex; gap:8px; margin-top:4px;">
+                <input type="text" id="githubGistIdInput" class="form-control" placeholder="Gist ID" style="font-family: monospace; font-size:12px;">
+                <button class="btn btn-sm" style="width: auto; min-width: max-content;" onclick="saveGithubGistId()">💾</button>
+              </div>
+            </div>
+
+            <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="syncWithGithub()">
+              <span class="material-symbols-outlined" style="font-size:16px;">sync</span> Запустить синхронизацию GitHub Gist
+            </button>
+          </div>
+        </details>
 
         <!-- Резервное копирование из файла -->
         <div style="border-top: 1px dashed #CCC; padding-top: 14px; margin-top: 10px;">
