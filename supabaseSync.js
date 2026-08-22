@@ -326,7 +326,7 @@ export async function syncWithSupabase() {
 
   if (remoteDicts && remoteDicts.length > 0) {
     for (const rd of remoteDicts) {
-      const exists = localDicts.some(ld => ld.category === rd.category && ld.value === rd.value);
+      const exists = localDicts.some(ld => ld.category === rd.category && ld.value.toLowerCase() === rd.value.toLowerCase());
       if (!exists) {
         await db.dictionaries.add({ category: rd.category, value: rd.value });
       }

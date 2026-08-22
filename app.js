@@ -1260,9 +1260,7 @@ async function handleCreateTrip(event) {
     }
   }
 
-  const dicts = await db.dictionaries.toArray();
-  const statuses = dicts.filter(d => d.category === 'status').map(d => d.value);
-  const defaultStatus = statuses.length > 0 ? statuses[0] : 'не подготовлен';
+  const defaultStatus = 'не подготовлен';
 
   await db.trips.add({
     appNo: document.getElementById('tripServiceApp').value,
@@ -2584,9 +2582,7 @@ async function handleCreateTripModal(event) {
     }
   }
 
-  const dicts = await db.dictionaries.toArray();
-  const statuses = dicts.filter(d => d.category === 'status').map(d => d.value);
-  const defaultStatus = statuses.length > 0 ? statuses[0] : 'не подготовлен';
+  const defaultStatus = 'не подготовлен';
 
   await db.trips.add({
     appNo: document.getElementById('modalTripServiceApp').value,
