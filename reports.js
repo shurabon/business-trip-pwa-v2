@@ -383,7 +383,18 @@ export async function exportToPDF(tripId) {
 
   const allExpenses = await db.expenses.toArray();
   const expenses = allExpenses.filter(e => String(e.tripId) === String(tripId));
-  const receiptExpenses = expenses.filter(e => e.receiptBase64 && String(e.receiptBase64).trim().length > 0);
+  
+  // Отбираем только изображения (исключаем PDF-документы)
+  const isImageExpense = (e) => {
+    if (!e) return false;
+    const isPdf = (e.receiptBase64 && String(e.receiptBase64).startsWith('JVBERi0')) ||
+                  (e.receiptName && String(e.receiptName).toLowerCase().endsWith('.pdf')) ||
+                  (e.receiptUrl && String(e.receiptUrl).toLowerCase().endsWith('.pdf'));
+    if (isPdf) return false;
+    return (e.receiptBase64 && String(e.receiptBase64).trim().length > 0) || (e.receiptUrl && String(e.receiptUrl).trim().length > 0);
+  };
+
+  const receiptExpenses = expenses.filter(isImageExpense);
 
   if (receiptExpenses.length === 0) {
     throw new Error('В этой командировке нет прикрепленных фотографий чеков!');
@@ -421,9 +432,14 @@ export async function exportToPDF(tripId) {
     const cellY = margin + row * (cellHeight + gap);
 
     const exp = receiptExpenses[i];
-    const dataUrl = exp.receiptBase64.startsWith('data:') 
-      ? exp.receiptBase64 
-      : `data:image/jpeg;base64,${exp.receiptBase64}`;
+    let dataUrl = '';
+    if (exp.receiptBase64 && String(exp.receiptBase64).trim().length > 0) {
+      dataUrl = exp.receiptBase64.startsWith('data:') 
+        ? exp.receiptBase64 
+        : `data:image/jpeg;base64,${exp.receiptBase64}`;
+    } else if (exp.receiptUrl) {
+      dataUrl = exp.receiptUrl;
+    }
 
     try {
       const dims = await getImageDimensions(dataUrl);

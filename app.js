@@ -464,11 +464,29 @@ async function onClientSelectChange(clientName, targetInputId) {
   }
 }
 
+function isPdfFile(expense) {
+  if (!expense) return false;
+  const name = String(expense.receiptName || '').toLowerCase();
+  const url = String(expense.receiptUrl || '').toLowerCase();
+  const base64 = String(expense.receiptBase64 || '');
+  
+  if (base64.startsWith('JVBERi0')) return true; // Сигнатура %PDF- в base64
+  if (base64.startsWith('data:application/pdf')) return true;
+  if (name.endsWith('.pdf') || url.endsWith('.pdf')) return true;
+  return false;
+}
+
 function compressImage(file) {
   return new Promise((resolve) => {
-    if (!file || !file.type.startsWith('image/')) {
+    if (!file) {
+      resolve({ base64: '', name: '', isImg: false });
+      return;
+    }
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
       const reader = new FileReader();
-      reader.onload = (e) => resolve({ base64: e.target.result.split(',')[1], name: file ? file.name : '', isImg: false });
+      reader.onload = (e) => resolve({ base64: e.target.result.split(',')[1], name: file.name, isImg: false });
       reader.readAsDataURL(file);
       return;
     }
@@ -501,7 +519,17 @@ function compressImage(file) {
 
         const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
         const base64 = compressedDataUrl.split(',')[1];
-        resolve({ base64, name: file.name, dataUrl: compressedDataUrl, isImg: true });
+        // Убеждаемся, что имя файла имеет расширение изображения
+        let finalName = file.name || 'receipt.jpg';
+        if (finalName.toLowerCase().endsWith('.pdf')) {
+          finalName = finalName.replace(/\.pdf$/i, '.jpg');
+        } else if (!/\.(jpg|jpeg|png|webp)$/i.test(finalName)) {
+          finalName += '.jpg';
+        }
+        resolve({ base64, name: finalName, dataUrl: compressedDataUrl, isImg: true });
+      };
+      img.onerror = () => {
+        resolve({ base64: e.target.result.split(',')[1], name: file.name, isImg: false });
       };
       img.src = e.target.result;
     };
@@ -1114,7 +1142,7 @@ async function renderFilteredSummaryList(aggregatedData) {
         tripExpenses.forEach(exp => {
           let fileBadge = '';
           const receiptSrc = exp.receiptUrl || (exp.receiptBase64 ? `data:image/jpeg;base64,${exp.receiptBase64}` : '');
-          const isPdf = (exp.receiptName && exp.receiptName.endsWith('.pdf')) || (exp.receiptUrl && exp.receiptUrl.endsWith('.pdf'));
+          const isPdf = isPdfFile(exp);
 
           if (receiptSrc || exp.receiptBase64) {
             if (isPdf) {
@@ -1439,8 +1467,8 @@ async function transformCardToEdit(tripId) {
   } else {
     tripExpenses.forEach(exp => {
       let icon = 'receipt_long';
-      if (exp.receiptBase64) {
-        icon = (exp.receiptName && exp.receiptName.endsWith('.pdf')) ? 'picture_as_pdf' : 'image';
+      if (exp.receiptBase64 || exp.receiptUrl) {
+        icon = isPdfFile(exp) ? 'picture_as_pdf' : 'image';
       }
       expEditRows += `
         <div id="inline-expense-edit-row-${exp.id}" style="display:flex; justify-content:space-between; align-items:center; background:#FFFFFF; border:1px solid #CBD5E1; border-radius:10px; padding:10px 12px; margin-bottom:8px; font-size:13px; cursor:pointer;" onclick="event.stopPropagation(); editExpenseItem(${exp.id}, '${t.id}')">
@@ -1728,7 +1756,7 @@ async function editExpenseItem(expenseId, tripId) {
 
   let photoPreviewHtml = '';
   const receiptSrc = exp.receiptUrl || (exp.receiptBase64 ? `data:image/jpeg;base64,${exp.receiptBase64}` : '');
-  const isPdf = (exp.receiptName && exp.receiptName.endsWith('.pdf')) || (exp.receiptUrl && exp.receiptUrl.endsWith('.pdf'));
+  const isPdf = isPdfFile(exp);
 
   if (receiptSrc || exp.receiptBase64) {
     if (isPdf) {
@@ -1831,7 +1859,8 @@ async function handleEditPhotoChange(expenseId, event) {
   const res = await compressImage(file);
   inlinePhotoState[expenseId] = {
     base64: res.base64,
-    name: res.name
+    name: res.name,
+    receiptUrl: null // сбрасываем старый cloud url, чтобы sync загрузил новый
   };
 
   const previewDiv = document.getElementById(`edit-photo-preview-${expenseId}`);
@@ -1846,7 +1875,7 @@ async function handleEditPhotoChange(expenseId, event) {
 
 function clearEditPhoto(expenseId) {
   if (confirm("Вы уверены, что хотите удалить фото чека?")) {
-    inlinePhotoState[expenseId] = { base64: '', name: '' };
+    inlinePhotoState[expenseId] = { base64: '', name: '', receiptUrl: null };
     const previewDiv = document.getElementById(`edit-photo-preview-${expenseId}`);
     if (previewDiv) {
       previewDiv.innerHTML = '<div style="color:#888; font-size:12px; text-align:center;">Фото удалено</div>';
@@ -1873,6 +1902,7 @@ async function saveInlineExpense(expenseId, tripId, targetId) {
   if (photoData.base64 !== undefined) {
     updateData.receiptBase64 = photoData.base64;
     updateData.receiptName = photoData.name;
+    updateData.receiptUrl = photoData.receiptUrl !== undefined ? photoData.receiptUrl : null;
   }
 
   await db.expenses.update(parseInt(expenseId), updateData);
@@ -2150,7 +2180,7 @@ async function renderExpensesList() {
     let previewContent = '';
 
     const receiptSrc = exp.receiptUrl || (exp.receiptBase64 ? `data:image/jpeg;base64,${exp.receiptBase64}` : '');
-    const isPdf = (exp.receiptName && exp.receiptName.endsWith('.pdf')) || (exp.receiptUrl && exp.receiptUrl.endsWith('.pdf'));
+    const isPdf = isPdfFile(exp);
 
     if (receiptSrc || exp.receiptBase64) {
       if (isPdf) {
