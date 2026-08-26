@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, HeadingLevel } from 'docx';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, HeadingLevel, PageOrientation } from 'docx';
 import { db, getAggregatedSummary, calculateTripDays, calculateCarMetrics, getCostArticleByWorkType } from './db.js';
 
 // 1. Полный сводный экспорт всех поездок в Excel
@@ -885,9 +885,9 @@ export async function exportWaybillDocx(tripId) {
       properties: {
         page: {
           size: {
-            orientation: "landscape",
-            width: 16838, // A4 landscape ~297mm
-            height: 11906 // A4 landscape ~210mm
+            orientation: PageOrientation.LANDSCAPE,
+            width: 16838, // 297mm in dxa
+            height: 11906 // 210mm in dxa
           },
           margin: {
             top: 500, // компактные поля для гарантии 1 листа
