@@ -772,6 +772,7 @@ async function deleteDictItem(id) {
     localStorage.setItem('dictionaries_updated_at', new Date().toISOString());
     showToast("🗑 Удалено из справочника!");
     await loadData();
+    scheduleAutoSync(1500);
   }
 }
 
@@ -2289,6 +2290,7 @@ async function deleteGlobalExpenseItem(expenseId, targetId) {
     closeEditBottomSheet(targetId);
     showToast("🗑 Расход удален!");
     await loadData();
+    scheduleAutoSync(1500);
   }
 }
 
@@ -2300,6 +2302,7 @@ async function deleteGlobalPaymentItem(paymentId, targetId) {
     closeEditBottomSheet(targetId);
     showToast("🗑 Выплата удалена!");
     await loadData();
+    scheduleAutoSync(1500);
   }
 }
 

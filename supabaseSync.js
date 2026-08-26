@@ -97,9 +97,18 @@ export async function syncWithSupabase() {
           })
         });
 
-        // Удаляем саму запись из облачной таблицы если есть id
-        if (d.id && d.tableName && ['trips', 'expenses', 'payments'].includes(d.tableName)) {
-          await supabaseFetch(`${d.tableName}?id=eq.${d.id}`, { method: 'DELETE' });
+        // Удаляем саму запись из облачной таблицы
+        if (d.tableName && ['trips', 'expenses', 'payments'].includes(d.tableName)) {
+          if (d.id) {
+            await supabaseFetch(`${d.tableName}?id=eq.${d.id}`, { method: 'DELETE' });
+          }
+          // Если это расход/выплата и есть композитные данные, удалим и по совпадению полей на случай расхождения id
+          if (d.tableName === 'expenses' && d.tripId && d.amount && d.date) {
+            await supabaseFetch(`expenses?trip_id=eq.${d.tripId}&amount=eq.${d.amount}&date=eq.${encodeURIComponent(d.date)}`, { method: 'DELETE' });
+          }
+          if (d.tableName === 'payments' && d.tripId && d.amount && d.date) {
+            await supabaseFetch(`payments?trip_id=eq.${d.tripId}&amount=eq.${d.amount}&date=eq.${encodeURIComponent(d.date)}`, { method: 'DELETE' });
+          }
         }
       } catch (e) {
         console.warn("Error pushing deleted item:", e);
@@ -113,13 +122,38 @@ export async function syncWithSupabase() {
   [...localDeleted, ...(remoteDeleted || []).map(r => ({
     tableName: r.table_name,
     uuid: r.id,
+    id: r.item_id,
     compositeKey: r.id,
     deletedAt: r.deleted_at
   }))].forEach(d => {
-    if (d) mergedDeletedMap.set(d.uuid || d.compositeKey, d);
+    if (d) {
+      const key = d.uuid || d.compositeKey || `${d.tableName}_${d.id || ''}`;
+      mergedDeletedMap.set(key, d);
+    }
   });
   const mergedDeletedList = Array.from(mergedDeletedMap.values());
   localStorage.setItem('btrips_deleted_items', JSON.stringify(mergedDeletedList));
+
+  // Хелпер проверки на удаленность
+  const isRecordDeleted = (tableName, record) => {
+    if (!record) return false;
+    const recId = String(record.id || '');
+    const recUuid = String(record.uuid || '');
+    return mergedDeletedList.some(d => {
+      if (d.tableName !== tableName) return false;
+      if (recId && (String(d.id) === recId || String(d.uuid) === recId || String(d.compositeKey).includes(`_${recId}`))) return true;
+      if (recUuid && (String(d.uuid) === recUuid || String(d.compositeKey).includes(recUuid))) return true;
+      if (tableName === 'expenses' || tableName === 'payments') {
+        const tripId = String(record.tripId || record.trip_id || '');
+        const amount = String(record.amount || '');
+        const date = String(record.date || '');
+        const note = String(record.note || record.description || '').trim();
+        const compKey = `${tableName}_${tripId}_${amount}_${date}_${note}`;
+        if (d.compositeKey === compKey) return true;
+      }
+      return false;
+    });
+  };
 
   // 3. Синхронизация TRIPS
   const remoteTrips = await supabaseFetch('trips?select=*');
@@ -127,7 +161,11 @@ export async function syncWithSupabase() {
 
   // Отправляем новые / обновленные локальные поездки в Supabase
   for (const lt of localTrips) {
-    const rt = remoteTrips.find(r => String(r.id) === String(lt.id));
+    if (isRecordDeleted('trips', lt)) {
+      await db.trips.delete(lt.id);
+      continue;
+    }
+    const rt = remoteTrips?.find(r => String(r.id) === String(lt.id));
     if (!rt || new Date(lt.updatedAt || 0) > new Date(rt.updated_at || 0)) {
       await supabaseFetch('trips', {
         method: 'POST',
@@ -153,9 +191,8 @@ export async function syncWithSupabase() {
   }
 
   // Принимаем поездки из Supabase в локальную базу
-  for (const rt of remoteTrips) {
-    const isDeleted = mergedDeletedList.some(d => d.tableName === 'trips' && String(d.id || d.uuid) === String(rt.id));
-    if (isDeleted) {
+  for (const rt of (remoteTrips || [])) {
+    if (isRecordDeleted('trips', rt)) {
       await db.trips.delete(rt.id);
       continue;
     }
@@ -188,7 +225,11 @@ export async function syncWithSupabase() {
   const localExpenses = await db.expenses.toArray();
 
   for (const le of localExpenses) {
-    const re = remoteExpenses.find(r => String(r.id) === String(le.id));
+    if (isRecordDeleted('expenses', le)) {
+      await db.expenses.delete(le.id);
+      continue;
+    }
+    const re = remoteExpenses?.find(r => String(r.id) === String(le.id));
     
     // Если есть локальный чек Base64 и нет receipt_url в облаке — загружаем в Storage
     let receiptUrl = le.receiptUrl || (re ? re.receipt_url : null);
@@ -220,9 +261,8 @@ export async function syncWithSupabase() {
     }
   }
 
-  for (const re of remoteExpenses) {
-    const isDeleted = mergedDeletedList.some(d => d.tableName === 'expenses' && String(d.id || d.uuid) === String(re.id));
-    if (isDeleted) {
+  for (const re of (remoteExpenses || [])) {
+    if (isRecordDeleted('expenses', re)) {
       await db.expenses.delete(re.id);
       continue;
     }
@@ -253,7 +293,11 @@ export async function syncWithSupabase() {
   const localPayments = await db.payments.toArray();
 
   for (const lp of localPayments) {
-    const rp = remotePayments.find(r => String(r.id) === String(lp.id));
+    if (isRecordDeleted('payments', lp)) {
+      await db.payments.delete(lp.id);
+      continue;
+    }
+    const rp = remotePayments?.find(r => String(r.id) === String(lp.id));
     if (!rp || new Date(lp.updatedAt || 0) > new Date(rp.updated_at || 0)) {
       await supabaseFetch('payments', {
         method: 'POST',
@@ -270,9 +314,8 @@ export async function syncWithSupabase() {
     }
   }
 
-  for (const rp of remotePayments) {
-    const isDeleted = mergedDeletedList.some(d => d.tableName === 'payments' && String(d.id || d.uuid) === String(rp.id));
-    if (isDeleted) {
+  for (const rp of (remotePayments || [])) {
+    if (isRecordDeleted('payments', rp)) {
       await db.payments.delete(rp.id);
       continue;
     }
