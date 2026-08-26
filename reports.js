@@ -795,86 +795,159 @@ export async function exportWaybillDocx(tripId) {
   const clientAddress = trip.location || '';
   const clientName = trip.client || '';
   const fullDest = clientAddress.includes(clientName) ? clientAddress : (clientName ? `${clientName}, ${clientAddress}` : clientAddress);
-  const routeText1 = `Екатеринбург, ул. Грибоедова 21 – ${fullDest} – Екатеринбург, ул. Грибоедова 21`;
-  const routeText2 = `${fullDest} – Екатеринбург, ул. Грибоедова 21`;
+  const routeText1 = `Екатеринбург, ул. Грибоедова  21  –  ${fullDest}  –  Екатеринбург, ул. Грибоедова  21`;
+  const routeText2 = `${fullDest}  –  Екатеринбург, ул. Грибоедова  21`;
 
   const borders = {
-    top: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-    bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-    left: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-    right: { style: BorderStyle.SINGLE, size: 4, color: "000000" }
+    top: { style: BorderStyle.SINGLE, size: 2, color: "000000" },
+    bottom: { style: BorderStyle.SINGLE, size: 2, color: "000000" },
+    left: { style: BorderStyle.SINGLE, size: 2, color: "000000" },
+    right: { style: BorderStyle.SINGLE, size: 2, color: "000000" }
   };
+
+  // Точные размеры колонок первой таблицы из оригинала
+  const w1 = [2093, 1134, 1843, 1134, 1417, 2126, 1560, 1559, 1559, 1559];
+  const totalW1 = w1.reduce((a, b) => a + b, 0); // 15984
 
   // Таблица 1: Спидометр и Топливо
   const table1 = new Table({
-    width: { size: 15600, type: WidthType.DXA },
+    width: { size: totalW1, type: WidthType.DXA },
     rows: [
       new TableRow({
         children: [
           new TableCell({
             borders,
+            width: { size: w1[0] + w1[1], type: WidthType.DXA },
             columnSpan: 2,
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "На начало", bold: true, font: "Arial", size: 18 })] })]
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "На начало", font: "Arial", size: 18 })] })]
           }),
           new TableCell({
             borders,
+            width: { size: w1[2] + w1[3], type: WidthType.DXA },
             columnSpan: 2,
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "На конец", bold: true, font: "Arial", size: 18 })] })]
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "На конец", font: "Arial", size: 18 })] })]
           }),
           new TableCell({
             borders,
+            width: { size: w1.slice(4).reduce((a, b) => a + b, 0), type: WidthType.DXA },
             columnSpan: 6,
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "За период", bold: true, font: "Arial", size: 18 })] })]
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "За период", font: "Arial", size: 18 })] })]
           })
         ]
       }),
       new TableRow({
         children: [
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Показание спидометра (км)", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Остаток в баке авто (л)", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Показание спидометра (км)", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Остаток в баке авто (л)", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Заправлено (л)", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Наименование топлива", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Пробег (км)", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Норма расхода (л/100 км)", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Расход топлива по норме (л)", font: "Arial", size: 16 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Расход топлива по факту (л)", font: "Arial", size: 16 })] })] })
-        ]
+          "Показание\nспидометра (км)",
+          "Остаток в\nбаке авто\n(л)",
+          "Показание\nспидометра (км)",
+          "Остаток в\nбаке авто\n(л)",
+          "Заправлено\n(л)",
+          "Наименование\nтоплива",
+          "Пробег (км)",
+          "Норма расхода\n(л/100 км)",
+          "Расход топлива\nпо норме (л)",
+          "Расход топлива\nпо факту (л)"
+        ].map((headerText, idx) => new TableCell({
+          borders,
+          width: { size: w1[idx], type: WidthType.DXA },
+          children: headerText.split('\n').map(t => new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: t, font: "Arial", size: 16 })] }))
+        }))
       }),
       new TableRow({
         children: [
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(odoStartVal), bold: true, font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "35", font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(odoFinishVal), bold: true, font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "35", font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(roundedFuelInt), font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "АИ-95", font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(distance), bold: true, font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(fuelRate).replace('.', ','), font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: roundedFuel, font: "Arial", size: 18 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: roundedFuel, font: "Arial", size: 18 })] })] })
-        ]
+          String(odoStartVal),
+          "35",
+          String(odoFinishVal),
+          "35",
+          String(roundedFuelInt),
+          "АИ-95",
+          String(distance),
+          String(fuelRate).replace('.', ','),
+          roundedFuel,
+          roundedFuel
+        ].map((val, idx) => new TableCell({
+          borders,
+          width: { size: w1[idx], type: WidthType.DXA },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: val, font: "Arial", size: 18 })] })]
+        }))
       })
     ]
   });
 
+  // Точные размеры колонок второй таблицы из оригинала
+  const w2 = [426, 1701, 13891];
+  const totalW2 = w2.reduce((a, b) => a + b, 0); // 16018
+
   // Таблица 2: Маршрут следования
   const table2 = new Table({
-    width: { size: 15600, type: WidthType.DXA },
+    width: { size: totalW2, type: WidthType.DXA },
     rows: [
       new TableRow({
         children: [
-          new TableCell({ borders, width: { size: 600, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "№ п/п", bold: true, font: "Arial", size: 17 })] })] }),
-          new TableCell({ borders, width: { size: 2200, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Дата использования автомобиля", bold: true, font: "Arial", size: 17 })] })] }),
-          new TableCell({ borders, width: { size: 12800, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Маршрут", bold: true, font: "Arial", size: 17 })] })] })
+          new TableCell({
+            borders,
+            width: { size: w2[0], type: WidthType.DXA },
+            rowSpan: 2,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "№\nп/п", font: "Arial", size: 16 })] })]
+          }),
+          new TableCell({
+            borders,
+            width: { size: w2[1], type: WidthType.DXA },
+            rowSpan: 2,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Дата\nиспользования\nавтомобиля", font: "Arial", size: 16 })] })]
+          }),
+          new TableCell({
+            borders,
+            width: { size: w2[2], type: WidthType.DXA },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Маршрут", font: "Arial", size: 16 })] })]
+          })
         ]
       }),
       new TableRow({
         children: [
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "1", font: "Arial", size: 17 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: dateRangeStr, font: "Arial", size: 17 })] })] }),
-          new TableCell({ borders, children: [new Paragraph({ children: [new TextRun({ text: routeText1, font: "Arial", size: 17 })] })] })
+          new TableCell({
+            borders,
+            width: { size: w2[2], type: WidthType.DXA },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "", font: "Arial", size: 16 })] })]
+          })
+        ]
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            borders,
+            width: { size: w2[0], type: WidthType.DXA },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "1", font: "Arial", size: 16 })] })]
+          }),
+          new TableCell({
+            borders,
+            width: { size: w2[1], type: WidthType.DXA },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: dateRangeStr, font: "Arial", size: 16 })] })]
+          }),
+          new TableCell({
+            borders,
+            width: { size: w2[2], type: WidthType.DXA },
+            children: [new Paragraph({ children: [new TextRun({ text: routeText1, font: "Arial", size: 16 })] })]
+          })
+        ]
+      }),
+      new TableRow({
+        children: [
+          new TableCell({
+            borders,
+            width: { size: w2[0], type: WidthType.DXA },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "2", font: "Arial", size: 16 })] })]
+          }),
+          new TableCell({
+            borders,
+            width: { size: w2[1], type: WidthType.DXA },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: dateRangeStr, font: "Arial", size: 16 })] })]
+          }),
+          new TableCell({
+            borders,
+            width: { size: w2[2], type: WidthType.DXA },
+            children: [new Paragraph({ children: [new TextRun({ text: routeText2, font: "Arial", size: 16 })] })]
+          })
         ]
       })
     ]
@@ -886,71 +959,66 @@ export async function exportWaybillDocx(tripId) {
         page: {
           size: {
             orientation: PageOrientation.LANDSCAPE,
-            width: 16838, // 297mm in dxa
-            height: 11906 // 210mm in dxa
+            width: 11906,  // В docx js при landscape передается портретная пара (11906x16838), библиотека переворачивает в w:w=16838, w:h=11906
+            height: 16838
           },
           margin: {
-            top: 500, // компактные поля для гарантии 1 листа
-            right: 500,
-            bottom: 500,
-            left: 600
+            top: 426,
+            right: 284,
+            bottom: 426,
+            left: 567
           }
         }
       },
       children: [
         new Paragraph({
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 120 },
+          spacing: { after: 60 },
           children: [
-            new TextRun({ text: "Путевой лист легкового автомобиля KIA RIO 3", bold: true, font: "Arial", size: 24 })
+            new TextRun({ text: "Путевой лист легкового автомобиля KIA RIO 3", font: "Arial", size: 24 })
           ]
         }),
         new Paragraph({
-          spacing: { line: 240, after: 40 },
+          spacing: { line: 240, after: 20 },
           children: [
-            new TextRun({ text: "Организация: ", bold: true, font: "Arial", size: 18 }),
-            new TextRun({ text: "ООО «МИЛЛАБ» , 127410, город Москва, улица Инженерная, дом 18, корпус 1, квартира 43", font: "Arial", size: 18 })
+            new TextRun({ text: "Организация: ООО «МИЛЛАБ» , 127410, город Москва, улица Инженерная, дом 18, корпус 1, квартира 43", font: "Arial", size: 20 })
           ]
         }),
         new Paragraph({
-          spacing: { line: 240, after: 40 },
+          spacing: { line: 240, after: 20 },
           children: [
-            new TextRun({ text: "Автомобиль: ", bold: true, font: "Arial", size: 18 }),
-            new TextRun({ text: "рег. знак Х124НТ 196", font: "Arial", size: 18 })
+            new TextRun({ text: "Автомобиль: рег. знак   Х124НТ 196", font: "Arial", size: 20 })
           ]
         }),
         new Paragraph({
-          spacing: { line: 240, after: 40 },
+          spacing: { line: 240, after: 20 },
           children: [
-            new TextRun({ text: "ФИО водителя: ", bold: true, font: "Arial", size: 18 }),
-            new TextRun({ text: "Данилов Александр Дмитриевич", font: "Arial", size: 18 })
+            new TextRun({ text: "ФИО водителя:  Данилов Александр Дмитриевич", font: "Arial", size: 20 })
           ]
         }),
         new Paragraph({
-          spacing: { line: 240, after: 140 },
+          spacing: { line: 240, after: 80 },
           children: [
-            new TextRun({ text: "Номер водительского удостоверения: ", bold: true, font: "Arial", size: 18 }),
-            new TextRun({ text: "66 16 369586", font: "Arial", size: 18 })
+            new TextRun({ text: "Номер водительского удостоверения: 66 16 369586", font: "Arial", size: 20 })
           ]
         }),
 
         // Таблица 1
         table1,
 
-        new Paragraph({ spacing: { before: 140, after: 80 } }),
+        new Paragraph({ spacing: { before: 80, after: 80 } }),
 
         // Таблица 2
         table2,
 
-        new Paragraph({ spacing: { before: 200, after: 100 } }),
+        new Paragraph({ spacing: { before: 180, after: 60 } }),
 
         // Подписи
         new Paragraph({
-          spacing: { before: 140, line: 280 },
+          spacing: { line: 260 },
           children: [
-            new TextRun({ text: "Водитель   __________________________  (Данилов А.Д.)", font: "Arial", size: 20 }),
-            new TextRun({ text: "               ", font: "Arial", size: 20 }),
-            new TextRun({ text: "Главный бухгалтер   ___________________  (Кудрявцева О.А.)", font: "Arial", size: 20 })
+            new TextRun({ text: "Водитель  __________________________ (Данилов А.Д.)", font: "Arial", size: 20 }),
+            new TextRun({ text: "\t\t\t\t\t\t\t\t\t\t\t", font: "Arial", size: 20 }),
+            new TextRun({ text: "Главный бухгалтер  ___________________ (Кудрявцева О.А.)", font: "Arial", size: 20 })
           ]
         })
       ]
