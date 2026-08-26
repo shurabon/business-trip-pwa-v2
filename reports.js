@@ -377,6 +377,19 @@ function getImageDimensions(dataUrl) {
 }
 
 // 3. Генерация чистого PDF с чеками (умная сетка 2x2: до 4 чеков на лист A4, сохранение пропорций)
+// Хелпер для скачивания файла чека
+function triggerFileDownload(urlOrBlob, fileName) {
+  const a = document.createElement('a');
+  a.href = urlOrBlob;
+  a.download = fileName || 'document.pdf';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+  }, 2000);
+}
+
+// 3. Генерация чистого PDF с чеками (умная сетка 2x2: до 4 чеков на лист A4, сохранение пропорций + скачивание PDF-чеков)
 export async function exportToPDF(tripId) {
   const trip = await db.trips.get(parseInt(tripId));
   if (!trip) throw new Error('Командировка не найдена');
@@ -384,98 +397,136 @@ export async function exportToPDF(tripId) {
   const allExpenses = await db.expenses.toArray();
   const expenses = allExpenses.filter(e => String(e.tripId) === String(tripId));
   
-  // Отбираем только изображения (исключаем PDF-документы)
+  const isPdfExpense = (e) => {
+    if (!e) return false;
+    const base64 = String(e.receiptBase64 || '');
+    const name = String(e.receiptName || '').toLowerCase();
+    const url = String(e.receiptUrl || '').toLowerCase();
+    if (base64.startsWith('JVBERi0') || base64.startsWith('data:application/pdf')) return true;
+    if (name.endsWith('.pdf') || url.endsWith('.pdf')) return true;
+    return false;
+  };
+
   const isImageExpense = (e) => {
     if (!e) return false;
-    const isPdf = (e.receiptBase64 && String(e.receiptBase64).startsWith('JVBERi0')) ||
-                  (e.receiptName && String(e.receiptName).toLowerCase().endsWith('.pdf')) ||
-                  (e.receiptUrl && String(e.receiptUrl).toLowerCase().endsWith('.pdf'));
-    if (isPdf) return false;
+    if (isPdfExpense(e)) return false;
     return (e.receiptBase64 && String(e.receiptBase64).trim().length > 0) || (e.receiptUrl && String(e.receiptUrl).trim().length > 0);
   };
 
-  const receiptExpenses = expenses.filter(isImageExpense);
+  const imageReceipts = expenses.filter(isImageExpense);
+  const pdfReceipts = expenses.filter(isPdfExpense);
 
-  if (receiptExpenses.length === 0) {
-    throw new Error('В этой командировке нет прикрепленных фотографий чеков!');
+  if (imageReceipts.length === 0 && pdfReceipts.length === 0) {
+    throw new Error('В этой командировке нет прикрепленных чеков (ни фото, ни PDF)!');
   }
 
-  // Создаем PDF A4 (210 мм x 297 мм)
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
+  // 1. Скачиваем оригинальные PDF-чеки (если есть)
+  for (let idx = 0; idx < pdfReceipts.length; idx++) {
+    const exp = pdfReceipts[idx];
+    let pdfUrl = exp.receiptUrl || '';
+    let blobUrl = '';
 
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const margin = 10;
-  const gap = 8; // отступ между чеками
-
-  // Сетка 2 колонки x 2 строки
-  const cellWidth = (pageWidth - margin * 2 - gap) / 2; // ~91 мм
-  const cellHeight = (pageHeight - margin * 2 - gap) / 2; // ~134.5 мм
-
-  for (let i = 0; i < receiptExpenses.length; i++) {
-    const pageIndex = Math.floor(i / 4);
-    const posInPage = i % 4; // 0: верх-лево, 1: верх-право, 2: низ-лево, 3: низ-право
-
-    // Новую страницу добавляем ТОЛЬКО если это не первый элемент и он начинает новую 4-ку
-    if (i > 0 && posInPage === 0) {
-      doc.addPage();
+    if (!pdfUrl && exp.receiptBase64) {
+      const cleanBase64 = exp.receiptBase64.includes(',') ? exp.receiptBase64.split(',')[1] : exp.receiptBase64;
+      const byteCharacters = atob(cleanBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let j = 0; j < byteCharacters.length; j++) {
+        byteNumbers[j] = byteCharacters.charCodeAt(j);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      blobUrl = URL.createObjectURL(blob);
+      pdfUrl = blobUrl;
     }
 
-    const col = posInPage % 2; // 0 или 1
-    const row = Math.floor(posInPage / 2); // 0 или 1
-
-    const cellX = margin + col * (cellWidth + gap);
-    const cellY = margin + row * (cellHeight + gap);
-
-    const exp = receiptExpenses[i];
-    let dataUrl = '';
-    if (exp.receiptBase64 && String(exp.receiptBase64).trim().length > 0) {
-      dataUrl = exp.receiptBase64.startsWith('data:') 
-        ? exp.receiptBase64 
-        : `data:image/jpeg;base64,${exp.receiptBase64}`;
-    } else if (exp.receiptUrl) {
-      dataUrl = exp.receiptUrl;
+    if (pdfUrl) {
+      const appClean = (trip.appNo || trip.id || 'поездка').toString().replace(/[/\\?%*:|"<>]/g, '-');
+      const safeDocName = exp.receiptName || `Чек_PDF_${appClean}_${idx + 1}.pdf`;
+      // Небольшая задержка между скачиваниями, чтобы браузер не блокировал множественные загрузки
+      setTimeout(() => {
+        triggerFileDownload(pdfUrl, safeDocName);
+        if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      }, idx * 500);
     }
+  }
 
-    try {
-      const dims = await getImageDimensions(dataUrl);
-      const imgRatio = dims.width / dims.height;
-      const cellRatio = cellWidth / cellHeight;
+  // 2. Если есть фото-чеки — собираем их в PDF-коллаж
+  if (imageReceipts.length > 0) {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
 
-      let drawW, drawH;
-      if (imgRatio > cellRatio) {
-        // Картинка шире ячейки
-        drawW = cellWidth;
-        drawH = cellWidth / imgRatio;
-      } else {
-        // Картинка выше ячейки
-        drawH = cellHeight;
-        drawW = cellHeight * imgRatio;
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 10;
+    const gap = 8; // отступ между чеками
+
+    // Сетка 2 колонки x 2 строки
+    const cellWidth = (pageWidth - margin * 2 - gap) / 2; // ~91 мм
+    const cellHeight = (pageHeight - margin * 2 - gap) / 2; // ~134.5 мм
+
+    for (let i = 0; i < imageReceipts.length; i++) {
+      const posInPage = i % 4; // 0: верх-лево, 1: верх-право, 2: низ-лево, 3: низ-право
+
+      if (i > 0 && posInPage === 0) {
+        doc.addPage();
       }
 
-      // Центрирование картинки внутри её ячейки (сетки 2x2)
-      const posX = cellX + (cellWidth - drawW) / 2;
-      const posY = cellY + (cellHeight - drawH) / 2;
+      const col = posInPage % 2; // 0 или 1
+      const row = Math.floor(posInPage / 2); // 0 или 1
 
-      let format = 'JPEG';
-      if (dataUrl.includes('image/png')) format = 'PNG';
-      if (dataUrl.includes('image/webp')) format = 'WEBP';
+      const cellX = margin + col * (cellWidth + gap);
+      const cellY = margin + row * (cellHeight + gap);
 
-      doc.addImage(dataUrl, format, posX, posY, drawW, drawH, undefined, 'FAST');
-    } catch (err) {
-      console.error('Ошибка вставки чека в PDF:', err);
+      const exp = imageReceipts[i];
+      let dataUrl = '';
+      if (exp.receiptBase64 && String(exp.receiptBase64).trim().length > 0) {
+        dataUrl = exp.receiptBase64.startsWith('data:') 
+          ? exp.receiptBase64 
+          : `data:image/jpeg;base64,${exp.receiptBase64}`;
+      } else if (exp.receiptUrl) {
+        dataUrl = exp.receiptUrl;
+      }
+
+      try {
+        const dims = await getImageDimensions(dataUrl);
+        const imgRatio = dims.width / dims.height;
+        const cellRatio = cellWidth / cellHeight;
+
+        let drawW, drawH;
+        if (imgRatio > cellRatio) {
+          drawW = cellWidth;
+          drawH = cellWidth / imgRatio;
+        } else {
+          drawH = cellHeight;
+          drawW = cellHeight * imgRatio;
+        }
+
+        const posX = cellX + (cellWidth - drawW) / 2;
+        const posY = cellY + (cellHeight - drawH) / 2;
+
+        let format = 'JPEG';
+        if (dataUrl.includes('image/png')) format = 'PNG';
+        if (dataUrl.includes('image/webp')) format = 'WEBP';
+
+        doc.addImage(dataUrl, format, posX, posY, drawW, drawH, undefined, 'FAST');
+      } catch (err) {
+        console.error('Ошибка вставки чека в PDF:', err);
+      }
     }
+
+    const appNoClean = (trip.appNo || trip.id || 'поездка').toString().replace(/[/\\?%*:|"<>]/g, '-');
+    const clientClean = (trip.client || '').toString().replace(/[/\\?%*:|"<>]/g, '-');
+    const fileName = `Фото_Чеков_${appNoClean}_${clientClean}.pdf`;
+
+    // Задержка сохранения коллажа, чтобы не конфликтовать со скачиванием PDF-файлов
+    const delay = pdfReceipts.length * 500;
+    setTimeout(() => {
+      doc.save(fileName);
+    }, delay);
   }
-
-  const appNoClean = (trip.appNo || trip.id || 'поездка').toString().replace(/[/\\?%*:|"<>]/g, '-');
-  const clientClean = (trip.client || '').toString().replace(/[/\\?%*:|"<>]/g, '-');
-  const fileName = `Чеки_${appNoClean}_${clientClean}.pdf`;
-
-  doc.save(fileName);
 }
 
 // 4. Генерация Заявления на возмещение денежных средств в формате Word (.docx)

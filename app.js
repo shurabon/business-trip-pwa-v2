@@ -2063,7 +2063,7 @@ async function generateSelectedReport() {
       showToast("📊 Авансовый отчет АО-1 (Excel) сформирован!");
     } else if (type === 'pdf') {
       await exportToPDF(tripId);
-      showToast("📕 PDF с фото всех чеков сформирован!");
+      showToast("📕 Чеки командировки выгружены!");
     } else if (type === 'reimbursementDocx') {
       await exportReimbursementDocx(tripId);
       showToast("📝 Заявление на возмещение ДС (Word) сформировано!");
@@ -2090,7 +2090,7 @@ async function downloadPDFReport() {
   }
   try {
     await exportToPDF(tripId);
-    showToast("📕 PDF Авансовый отчет с чеками сформирован!");
+    showToast("📕 Чеки командировки выгружены!");
   } catch (err) {
     showToast("❌ Ошибка при экспорте PDF: " + err);
   }
