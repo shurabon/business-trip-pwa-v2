@@ -101,7 +101,23 @@ export async function exportAO1Excel(tripId) {
   const defaultArticle = getCostArticleByWorkType(trip.workType);
 
   const workbook = new ExcelJS.Workbook();
-  const ws = workbook.addWorksheet('Авансовый отчет');
+  const ws = workbook.addWorksheet('Авансовый отчет', {
+    pageSetup: {
+      paperSize: 9, // A4
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 1,
+      margins: {
+        left: 0.4,
+        right: 0.4,
+        top: 0.5,
+        bottom: 0.5,
+        header: 0.2,
+        footer: 0.2
+      }
+    }
+  });
 
   ws.columns = [
     { key: 'A', width: 28 }, // А: Описание / Статьи
@@ -256,7 +272,7 @@ export async function exportAO1Excel(tripId) {
   const cHeaderCell = ws.getCell(`A${cashlessHeaderRow}`);
   cHeaderCell.value = 'ОПЛАТА БЕЗНАЛИЧНЫМ ПЕРЕВОДОМ (справочно)';
   cHeaderCell.font = { bold: true, size: 11 };
-  rowIdx += 2;
+  rowIdx++;
 
   // Шапка безналичных оплат
   const cashlessSubHeaderRow = rowIdx;
@@ -292,9 +308,9 @@ export async function exportAO1Excel(tripId) {
     ws.getCell(`D${cashlessTotalRow}`).value = 0;
   }
   ws.getCell(`D${cashlessTotalRow}`).font = { bold: true };
-  rowIdx += 2;
+  rowIdx++;
 
-  // Финальная строка ИТОГО нал. и безнал.
+  // Финальная строка ИТОГО нал. и безнал. (идёт сразу под Всего)
   const grandTotalRow = rowIdx;
   ws.mergeCells(`A${grandTotalRow}:B${grandTotalRow}`);
   ws.getCell(`A${grandTotalRow}`).value = 'ИТОГО нал. и безнал.';
