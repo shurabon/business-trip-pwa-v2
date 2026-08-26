@@ -45,8 +45,10 @@ export function scheduleAutoSync(delayMs = 2500) {
       updateSyncHeaderIndicator('syncing');
       const res = await syncWithSupabase();
       updateSyncHeaderIndicator('synced', res.tripsCount);
-      // Тихо обновляем UI если данные изменились
-      await loadData();
+      // Тихо обновляем UI только если пользователь не редактирует сейчас карточку
+      if (!activeTripId && !document.getElementById('editBottomSheetModal')?.style.display?.includes('flex')) {
+        await loadData();
+      }
     } catch (err) {
       console.warn("Silent background auto-sync warning:", err);
       updateSyncHeaderIndicator('idle');
