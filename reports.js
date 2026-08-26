@@ -786,7 +786,9 @@ export async function exportWaybillDocx(tripId) {
   const fuelRate = carMetrics.fuelRate || 8.7;
   const fuelLiters = carMetrics.fuelLiters || (distance * fuelRate / 100);
   const roundedFuel = fuelLiters.toFixed(1).replace('.', ',');
+  // Расход по факту и заправлено - целое количество литров купленного бензина
   const roundedFuelInt = Math.round(fuelLiters);
+  const actualFuelVal = String(roundedFuelInt);
 
   const startRu = trip.startDate || '';
   const finishRu = trip.finishDate || startRu;
@@ -795,8 +797,8 @@ export async function exportWaybillDocx(tripId) {
   const clientAddress = trip.location || '';
   const clientName = trip.client || '';
   const fullDest = clientAddress.includes(clientName) ? clientAddress : (clientName ? `${clientName}, ${clientAddress}` : clientAddress);
-  const routeText1 = `Екатеринбург, ул. Грибоедова  21  –  ${fullDest}  –  Екатеринбург, ул. Грибоедова  21`;
-  const routeText2 = `${fullDest}  –  Екатеринбург, ул. Грибоедова  21`;
+  const routeText1 = `Екатеринбург, ул. Грибоедова 21 – ${fullDest} – Екатеринбург, ул. Грибоедова 21`;
+  const routeText2 = `${fullDest} – Екатеринбург, ул. Грибоедова 21`;
 
   const borders = {
     top: { style: BorderStyle.SINGLE, size: 2, color: "000000" },
@@ -805,7 +807,7 @@ export async function exportWaybillDocx(tripId) {
     right: { style: BorderStyle.SINGLE, size: 2, color: "000000" }
   };
 
-  // Точные размеры колонок первой таблицы из оригинала
+  // Точные размеры колонок первой таблицы
   const w1 = [2093, 1134, 1843, 1134, 1417, 2126, 1560, 1559, 1559, 1559];
   const totalW1 = w1.reduce((a, b) => a + b, 0); // 15984
 
@@ -864,7 +866,7 @@ export async function exportWaybillDocx(tripId) {
           String(distance),
           String(fuelRate).replace('.', ','),
           roundedFuel,
-          roundedFuel
+          actualFuelVal // Расход по факту равен купленному бензину
         ].map((val, idx) => new TableCell({
           borders,
           width: { size: w1[idx], type: WidthType.DXA },
@@ -874,11 +876,11 @@ export async function exportWaybillDocx(tripId) {
     ]
   });
 
-  // Точные размеры колонок второй таблицы из оригинала
-  const w2 = [426, 1701, 13891];
-  const totalW2 = w2.reduce((a, b) => a + b, 0); // 16018
+  // Узкие компактные колонки № и Дата, максимум ширины отдано под Маршрут
+  const w2 = [600, 1600, 13784];
+  const totalW2 = w2.reduce((a, b) => a + b, 0); // 15984
 
-  // Таблица 2: Маршрут следования
+  // Таблица 2: Маршрут следования (без горизонтального деления в шапке)
   const table2 = new Table({
     width: { size: totalW2, type: WidthType.DXA },
     rows: [
@@ -887,28 +889,17 @@ export async function exportWaybillDocx(tripId) {
           new TableCell({
             borders,
             width: { size: w2[0], type: WidthType.DXA },
-            rowSpan: 2,
             children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "№\nп/п", font: "Arial", size: 16 })] })]
           }),
           new TableCell({
             borders,
             width: { size: w2[1], type: WidthType.DXA },
-            rowSpan: 2,
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Дата\nиспользования\nавтомобиля", font: "Arial", size: 16 })] })]
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Дата использования автомобиля", font: "Arial", size: 16 })] })]
           }),
           new TableCell({
             borders,
             width: { size: w2[2], type: WidthType.DXA },
             children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Маршрут", font: "Arial", size: 16 })] })]
-          })
-        ]
-      }),
-      new TableRow({
-        children: [
-          new TableCell({
-            borders,
-            width: { size: w2[2], type: WidthType.DXA },
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "", font: "Arial", size: 16 })] })]
           })
         ]
       }),
@@ -947,6 +938,46 @@ export async function exportWaybillDocx(tripId) {
             borders,
             width: { size: w2[2], type: WidthType.DXA },
             children: [new Paragraph({ children: [new TextRun({ text: routeText2, font: "Arial", size: 16 })] })]
+          })
+        ]
+      })
+    ]
+  });
+
+  // Надежный двухколоночный блок подписей без рамок (чтобы Главный бухгалтер никогда не разъезжался)
+  const noBorders = {
+    top: { style: BorderStyle.NONE },
+    bottom: { style: BorderStyle.NONE },
+    left: { style: BorderStyle.NONE },
+    right: { style: BorderStyle.NONE }
+  };
+  const signTable = new Table({
+    width: { size: totalW2, type: WidthType.DXA },
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: noBorders,
+            width: { size: 7992, type: WidthType.DXA },
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: "Водитель  __________________________ (Данилов А.Д.)", font: "Arial", size: 20 })
+                ]
+              })
+            ]
+          }),
+          new TableCell({
+            borders: noBorders,
+            width: { size: 7992, type: WidthType.DXA },
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [
+                  new TextRun({ text: "Главный бухгалтер  ___________________ (Кудрявцева О.А.)", font: "Arial", size: 20 })
+                ]
+              })
+            ]
           })
         ]
       })
@@ -1010,17 +1041,10 @@ export async function exportWaybillDocx(tripId) {
         // Таблица 2
         table2,
 
-        new Paragraph({ spacing: { before: 180, after: 60 } }),
+        new Paragraph({ spacing: { before: 240, after: 60 } }),
 
-        // Подписи
-        new Paragraph({
-          spacing: { line: 260 },
-          children: [
-            new TextRun({ text: "Водитель  __________________________ (Данилов А.Д.)", font: "Arial", size: 20 }),
-            new TextRun({ text: "\t\t\t\t\t\t\t\t\t\t\t", font: "Arial", size: 20 }),
-            new TextRun({ text: "Главный бухгалтер  ___________________ (Кудрявцева О.А.)", font: "Arial", size: 20 })
-          ]
-        })
+        // Блок подписей
+        signTable
       ]
     }]
   });
