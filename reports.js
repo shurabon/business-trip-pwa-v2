@@ -813,6 +813,7 @@ export async function exportWaybillDocx(tripId) {
 
   // Таблица 1: Спидометр и Топливо
   const table1 = new Table({
+    columnWidths: w1,
     width: { size: totalW1, type: WidthType.DXA },
     rows: [
       new TableRow({
@@ -882,6 +883,7 @@ export async function exportWaybillDocx(tripId) {
 
   // Таблица 2: Маршрут следования (без горизонтального деления в шапке)
   const table2 = new Table({
+    columnWidths: w2,
     width: { size: totalW2, type: WidthType.DXA },
     rows: [
       new TableRow({
@@ -894,7 +896,7 @@ export async function exportWaybillDocx(tripId) {
           new TableCell({
             borders,
             width: { size: w2[1], type: WidthType.DXA },
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Дата использования автомобиля", font: "Arial", size: 16 })] })]
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Дата\nиспользования", font: "Arial", size: 16 })] })]
           }),
           new TableCell({
             borders,
@@ -952,6 +954,7 @@ export async function exportWaybillDocx(tripId) {
     right: { style: BorderStyle.NONE }
   };
   const signTable = new Table({
+    columnWidths: [7992, 7992],
     width: { size: totalW2, type: WidthType.DXA },
     rows: [
       new TableRow({
