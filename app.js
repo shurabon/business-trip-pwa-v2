@@ -1,5 +1,5 @@
 import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregatedSummary, formatDateToRu, getTodayRuDate, parseRuDate, getFuelSettings, calculateCarMetrics, markItemDeleted, cleanupDuplicates } from './db.js';
-import { exportToExcel, exportToPDF, exportAO1Excel, exportReimbursementDocx } from './reports.js';
+import { exportToExcel, exportToPDF, exportAO1Excel, exportReimbursementDocx, exportWaybillDocx } from './reports.js';
 import { exportLocalDbToJson, mergeRemoteDbToLocal, uploadToGithubGist, downloadAndMergeFromGithubGist } from './githubSync.js';
 import { syncWithSupabase, uploadReceiptToStorage } from './supabaseSync.js';
 
@@ -2063,6 +2063,9 @@ async function generateSelectedReport() {
     if (type === 'ao1') {
       await exportAO1Excel(tripId);
       showToast("📊 Авансовый отчет АО-1 (Excel) сформирован!");
+    } else if (type === 'waybillDocx') {
+      await exportWaybillDocx(tripId);
+      showToast("🚗 Путевой лист (Word) сформирован!");
     } else if (type === 'pdf') {
       await exportToPDF(tripId);
       showToast("📕 Чеки командировки выгружены!");
