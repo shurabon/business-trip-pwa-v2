@@ -137,12 +137,15 @@ export async function syncWithSupabase() {
   // Хелпер проверки на удаленность
   const isRecordDeleted = (tableName, record) => {
     if (!record) return false;
-    const recId = String(record.id || '');
-    const recUuid = String(record.uuid || '');
+    const recId = record.id != null ? String(record.id) : '';
+    const recUuid = record.uuid ? String(record.uuid) : '';
     return mergedDeletedList.some(d => {
       if (d.tableName !== tableName) return false;
-      if (recId && (String(d.id) === recId || String(d.uuid) === recId || String(d.compositeKey).includes(`_${recId}`))) return true;
-      if (recUuid && (String(d.uuid) === recUuid || String(d.compositeKey).includes(recUuid))) return true;
+      // Точное совпадение по числовому/строковому id
+      if (recId && (String(d.id) === recId || String(d.uuid) === recId || d.compositeKey === `${tableName}_${recId}`)) return true;
+      // Точное совпадение по uuid
+      if (recUuid && (String(d.uuid) === recUuid || String(d.id) === recUuid)) return true;
+      // Точное совпадение по композитному ключу для расходов и выплат
       if (tableName === 'expenses' || tableName === 'payments') {
         const tripId = String(record.tripId || record.trip_id || '');
         const amount = String(record.amount || '');
