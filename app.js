@@ -1269,7 +1269,7 @@ async function renderFilteredSummaryList(aggregatedData) {
             </span>
           </div>
           <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; font-size:11px; margin-top:4px; padding-top:4px; border-top:1px dashed #CBD5E1;">
-            <span>⛽ Топливо: <strong>${cm.fuelLiters.toFixed(1)} л</strong> (~${cm.fuelCost.toLocaleString('ru-RU')} ₽ при ${cm.fuelPricePerLiter} ₽/л)</span>
+            <span>⛽ Топливо по норме: <strong>${cm.fuelLiters.toFixed(1)} л</strong></span>
             ${deprHtml}
           </div>
         </div>

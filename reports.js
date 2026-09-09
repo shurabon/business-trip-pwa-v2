@@ -844,6 +844,11 @@ export async function exportWaybillDocx(tripId) {
   const w1 = [2093, 1134, 1843, 1134, 1417, 2126, 1560, 1559, 1559, 1559];
   const totalW1 = w1.reduce((a, b) => a + b, 0); // 15984
 
+  // Случайный правдоподобный остаток в баке (от 20 до 40 с шагом 5 л, стабилен для одной поездки)
+  const tankOptions = [20, 25, 30, 35, 40];
+  const tripSeed = (parseInt(trip.id) || 1) + (trip.appNo ? trip.appNo.length : 0);
+  const tankFuel = String(tankOptions[tripSeed % tankOptions.length]);
+
   // Таблица 1: Спидометр и Топливо
   const table1 = new Table({
     columnWidths: w1,
@@ -892,9 +897,9 @@ export async function exportWaybillDocx(tripId) {
       new TableRow({
         children: [
           String(odoStartVal),
-          "35",
+          tankFuel,
           String(odoFinishVal),
-          "35",
+          tankFuel,
           String(roundedFuelInt),
           "АИ-95",
           String(distance),
