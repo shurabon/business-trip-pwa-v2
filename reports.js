@@ -807,10 +807,16 @@ export async function exportWaybillDocx(tripId) {
     throw new Error('Путевой лист формируется только для поездок на личном автомобиле!');
   }
 
-  const odoStartVal = trip.odoStart || 0;
-  const odoFinishVal = trip.odoFinish || 0;
-  const distance = carMetrics.distanceKm || (odoFinishVal > odoStartVal ? odoFinishVal - odoStartVal : 0);
   const fuelRate = carMetrics.fuelRate || 8.7;
+  let odoStartVal = trip.odoStart || 0;
+  let odoFinishVal = trip.odoFinish || 0;
+
+  // Если одометр старта не был заполнен, но есть одометр финиша и чеки / пробег, автоматически восстанавливаем его
+  if (odoFinishVal > 0 && odoStartVal === 0 && carMetrics.distanceKm > 0) {
+    odoStartVal = Math.max(0, odoFinishVal - carMetrics.distanceKm);
+  }
+
+  const distance = carMetrics.distanceKm || (odoFinishVal > odoStartVal ? odoFinishVal - odoStartVal : 0);
   const fuelLiters = carMetrics.fuelLiters || (distance * fuelRate / 100);
   const roundedFuel = fuelLiters.toFixed(1).replace('.', ',');
   // Расход по факту и заправлено - целое количество литров купленного бензина

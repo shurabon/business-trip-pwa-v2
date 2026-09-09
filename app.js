@@ -217,6 +217,8 @@ function setupDefaults() {
   window.closeQuickPaymentModal = closeQuickPaymentModal;
   window.handleQuickAddPayment = handleQuickAddPayment;
   window.executeCloudSync = executeCloudSync;
+  window.calculateStartOdoFromLiters = calculateStartOdoFromLiters;
+  window.updateAutoFieldsHint = updateAutoFieldsHint;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -463,6 +465,72 @@ async function onClientSelectChange(clientName, targetInputId) {
     if (targetInput) {
       targetInput.value = clientObj.address;
     }
+  }
+}
+
+function calculateStartOdoFromLiters(startId, finishId, litersId) {
+  const finishInput = document.getElementById(finishId);
+  const litersInput = document.getElementById(litersId);
+  const startInput = document.getElementById(startId);
+
+  const finishVal = parseFloat(finishInput?.value) || 0;
+  const litersVal = parseFloat(litersInput?.value) || 0;
+
+  if (litersVal <= 0) {
+    showToast("⚠️ Укажите количество литров по чекам!");
+    return;
+  }
+  if (finishVal <= 0) {
+    showToast("⚠️ Укажите показание ODO финиш!");
+    return;
+  }
+
+  // Расчет: Пробег = Литры * 100 / Норма
+  const settings = getFuelSettings();
+  const fuelRate = parseFloat(settings.summerRate) || 8.7;
+  const targetKm = Math.round((litersVal * 100) / fuelRate);
+  const calculatedStart = finishVal - targetKm;
+
+  if (startInput) {
+    startInput.value = calculatedStart > 0 ? calculatedStart : 0;
+    // Подсвечиваем поле
+    startInput.style.transition = 'background 0.3s ease';
+    startInput.style.background = '#DCFCE7';
+    setTimeout(() => { startInput.style.background = ''; }, 1200);
+  }
+
+  updateAutoFieldsHint(startId, finishId, litersId);
+  showToast(`⚡ Рассчитан пробег ${targetKm} км под ${litersVal} л. ODO старт: ${calculatedStart}`);
+}
+
+function updateAutoFieldsHint(startId, finishId, litersId, hintDivId) {
+  const startInput = document.getElementById(startId);
+  const finishInput = document.getElementById(finishId);
+  const litersInput = document.getElementById(litersId);
+  const hintDiv = document.getElementById(hintDivId || startId.replace('OdoStart', 'AutoHint').replace('TripOdoStart', 'AutoHint'));
+
+  const startVal = parseFloat(startInput?.value) || 0;
+  const finishVal = parseFloat(finishInput?.value) || 0;
+  const litersVal = parseFloat(litersInput?.value) || 0;
+
+  const settings = getFuelSettings();
+  const fuelRate = parseFloat(settings.summerRate) || 8.7;
+
+  if (!hintDiv) return;
+
+  if (finishVal > startVal && startVal > 0) {
+    const km = finishVal - startVal;
+    const requiredLiters = ((km * fuelRate) / 100).toFixed(1);
+    const roundedLiters = Math.round(km * fuelRate / 100);
+    hintDiv.innerHTML = `🚗 Пробег: <strong>${km} км</strong> → норма заправки: <strong>${requiredLiters} л</strong> (округлённо: <strong>${roundedLiters} л</strong>).`;
+  } else if (finishVal > 0 && litersVal > 0) {
+    const km = Math.round((litersVal * 100) / fuelRate);
+    const estStart = finishVal - km;
+    hintDiv.innerHTML = `⛽ Под <strong>${litersVal} л</strong> нужен пробег: <strong>${km} км</strong> (ODO старт ≈ <strong>${estStart}</strong>). Нажмите «Рассчитать ODO старт».`;
+  } else if (finishVal > 0) {
+    hintDiv.innerHTML = `💡 Введите ODO старт или укажите литры по чекам, чтобы рассчитать одометр старта.`;
+  } else {
+    hintDiv.innerHTML = `💡 <em>Введите ODO старт/финиш или укажите литры из чека для автоподгона.</em>`;
   }
 }
 
@@ -1575,11 +1643,29 @@ async function transformCardToEdit(tripId) {
           <div class="form-row">
             <div class="form-group">
               <label>ODO start</label>
-              <input type="number" id="inlineOdoStart-${t.id}" class="form-control" value="${t.odoStart || 0}" step="1">
+              <input type="number" id="inlineOdoStart-${t.id}" class="form-control" value="${t.odoStart || 0}" step="1" oninput="updateAutoFieldsHint('inlineOdoStart-${t.id}', 'inlineOdoFinish-${t.id}', 'inlineFuelLitersHelper-${t.id}', 'inlineAutoHint-${t.id}')">
             </div>
             <div class="form-group">
               <label>ODO finish</label>
-              <input type="number" id="inlineOdoFinish-${t.id}" class="form-control" value="${t.odoFinish || 0}" step="1">
+              <input type="number" id="inlineOdoFinish-${t.id}" class="form-control" value="${t.odoFinish || 0}" step="1" oninput="updateAutoFieldsHint('inlineOdoStart-${t.id}', 'inlineOdoFinish-${t.id}', 'inlineFuelLitersHelper-${t.id}', 'inlineAutoHint-${t.id}')">
+            </div>
+          </div>
+
+          <!-- Умный помощник по топливу и одометру -->
+          <div style="background: #FFFFFF; border: 1px dashed #A5B4FC; border-radius: 10px; padding: 10px 12px; margin-top: 6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+              <div style="flex: 1; min-width: 140px;">
+                <label style="font-size: 11px; font-weight: 600; color: #475569; display:block; margin-bottom:2px;">⛽ Литры по чекам (л):</label>
+                <input type="number" id="inlineFuelLitersHelper-${t.id}" class="form-control" placeholder="Напр. 25" step="0.1" style="font-size: 13px; padding: 6px 8px;" oninput="updateAutoFieldsHint('inlineOdoStart-${t.id}', 'inlineOdoFinish-${t.id}', 'inlineFuelLitersHelper-${t.id}', 'inlineAutoHint-${t.id}')">
+              </div>
+              <div style="display:flex; align-items:flex-end; padding-top:16px;">
+                <button type="button" class="btn btn-sm btn-secondary" style="font-size: 12px; padding: 7px 10px; font-weight:600; display:flex; align-items:center; gap:4px; white-space:nowrap;" onclick="calculateStartOdoFromLiters('inlineOdoStart-${t.id}', 'inlineOdoFinish-${t.id}', 'inlineFuelLitersHelper-${t.id}')">
+                  <span class="material-symbols-outlined" style="font-size: 16px; color:var(--md-sys-color-primary);">calculate</span> Рассчитать ODO старт
+                </button>
+              </div>
+            </div>
+            <div id="inlineAutoHint-${t.id}" style="font-size: 11.5px; color: #555; margin-top: 6px; line-height: 1.3;">
+              💡 <em>Введите ODO старт/финиш или укажите литры из чека для автоподгона.</em>
             </div>
           </div>
         </div>
