@@ -555,7 +555,13 @@ export async function exportReimbursementDocx(tripId) {
   // В заявление на возмещение включаются личные расходы (наличные/карта физлица)
   const cashExpenses = tripExpenses.filter(e => e.paymentType !== 'cashless');
 
-  const totalAmount = cashExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  // Расчет суточных (командировочных)
+  const days = calculateTripDays(trip.startDate, trip.finishDate);
+  const perDiemRate = parseFloat(trip.perDiemRate) || 1100;
+  const perDiemSum = days * perDiemRate;
+
+  const expensesAmount = cashExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  const totalAmount = expensesAmount + perDiemSum;
   const formattedTotal = totalAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const appNo = trip.appNo || `№ ${trip.id}`;
@@ -592,7 +598,28 @@ export async function exportReimbursementDocx(tripId) {
     })
   ];
 
-  if (cashExpenses.length === 0) {
+  // 1. Суточные (командировочные) отдельной первой строкой
+  if (perDiemSum > 0) {
+    const formattedPerDiem = perDiemSum.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    tableRows.push(
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: trip.startDate || "-", font: "Times New Roman" })] })]
+          }),
+          new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: `Суточные (${days} дн. × ${perDiemRate.toLocaleString('ru-RU', { minimumFractionDigits: 2 })} ₽)`, font: "Times New Roman" })] })]
+          }),
+          new TableCell({
+            children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formattedPerDiem, font: "Times New Roman" })] })]
+          })
+        ]
+      })
+    );
+  }
+
+  // 2. Личные расходы по чекам
+  if (cashExpenses.length === 0 && perDiemSum === 0) {
     tableRows.push(
       new TableRow({
         children: [
