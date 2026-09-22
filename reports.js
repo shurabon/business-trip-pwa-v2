@@ -724,7 +724,7 @@ export async function exportReimbursementDocx(tripId) {
           spacing: { line: 360, after: 240 },
           children: [
             new TextRun({
-              text: `Прошу возместить денежные средства в размере ${formattedTotal} руб., потраченные для выполнения работ по заявке № ${appNo}. Подтверждающие документы и чеки прилагаются.`,
+              text: `Прошу возместить денежные средства в размере ${formattedTotal} руб., возникшие в связи с выполнением работ по заявке № ${appNo}. Подтверждающие документы прилагаются.`,
               font: "Times New Roman",
               size: 24
             })
