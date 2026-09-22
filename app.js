@@ -2,13 +2,18 @@ import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregate
 import { exportToExcel, exportToPDF, exportAO1Excel, exportReimbursementDocx, exportWaybillDocx } from './reports.js';
 import { exportLocalDbToJson, mergeRemoteDbToLocal, uploadToGithubGist, downloadAndMergeFromGithubGist } from './githubSync.js';
 import { syncWithSupabase, uploadReceiptToStorage } from './supabaseSync.js';
+import { generateSecret, verifySync, generateURI } from 'otplib';
+import QRCode from 'qrcode';
 
 let selectedFileBase64 = null;
 let selectedFileName = null;
 let autoSyncTimer = null;
 let isSyncInProgress = false;
+let pending2FASecret = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
+  check2FAAuthGate();
+  update2FAStatusUI();
   updateNetworkStatus();
   await seedInitialData();
   setupDefaults();
@@ -219,6 +224,11 @@ function setupDefaults() {
   window.executeCloudSync = executeCloudSync;
   window.calculateStartOdoFromLiters = calculateStartOdoFromLiters;
   window.updateAutoFieldsHint = updateAutoFieldsHint;
+  window.open2FASetupModal = open2FASetupModal;
+  window.close2FASetupModal = close2FASetupModal;
+  window.handleConfirm2FASetup = handleConfirm2FASetup;
+  window.disable2FA = disable2FA;
+  window.handleVerify2FALogin = handleVerify2FALogin;
 }
 
 function loadFuelSettingsIntoInputs() {
@@ -2874,3 +2884,173 @@ function protectSearchInputFromAutofill() {
 document.addEventListener('DOMContentLoaded', () => {
   protectSearchInputFromAutofill();
 });
+
+// ===== 2FA AUTHENTICATION (YANDEX KEY / TOTP) =====
+const TWO_FACTOR_KEY = 'btrip_2fa_secret';
+const TWO_FACTOR_SESSION_KEY = 'btrip_2fa_session_expires';
+
+function is2FAEnabled() {
+  const secret = localStorage.getItem(TWO_FACTOR_KEY);
+  return !!(secret && secret.trim().length > 0);
+}
+
+function check2FAAuthGate() {
+  if (!is2FAEnabled()) return;
+
+  const sessionExpires = localStorage.getItem(TWO_FACTOR_SESSION_KEY);
+  const now = Date.now();
+
+  if (!sessionExpires || now > parseInt(sessionExpires)) {
+    showLockScreen();
+  }
+}
+
+function showLockScreen() {
+  const overlay = document.getElementById('lockScreenOverlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    const input = document.getElementById('totpLoginInput');
+    if (input) {
+      input.value = '';
+      setTimeout(() => input.focus(), 150);
+    }
+  }
+}
+
+function hideLockScreen() {
+  const overlay = document.getElementById('lockScreenOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+}
+
+function handleVerify2FALogin(event) {
+  event.preventDefault();
+  const input = document.getElementById('totpLoginInput');
+  const rememberMe = document.getElementById('totpRememberMe')?.checked;
+  const token = (input?.value || '').trim();
+  const secret = localStorage.getItem(TWO_FACTOR_KEY);
+
+  if (!token || token.length !== 6) {
+    showToast("⚠️ Введите 6-значный код из Яндекс Ключа!");
+    return;
+  }
+
+  const result = verifySync({ token, secret });
+  if (result && result.valid) {
+    const days = rememberMe ? 30 : 1;
+    const expiresAt = Date.now() + days * 24 * 60 * 60 * 1000;
+    localStorage.setItem(TWO_FACTOR_SESSION_KEY, String(expiresAt));
+    hideLockScreen();
+    showToast("🔓 Авторизация успешна! Добро пожаловать!");
+  } else {
+    showToast("❌ Неверный или устаревший код из Яндекс Ключа!");
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+}
+
+function update2FAStatusUI() {
+  const badge = document.getElementById('twoFactorStatusBadge');
+  const btnSetup = document.getElementById('btnSetup2FA');
+  const btnDisable = document.getElementById('btnDisable2FA');
+
+  if (!badge) return;
+
+  if (is2FAEnabled()) {
+    badge.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px; color:#15803D;">verified_user</span> <span style="color:#15803D;">2FA активирована (Яндекс Ключ)</span>';
+    badge.style.background = '#DCFCE7';
+    if (btnSetup) btnSetup.style.display = 'none';
+    if (btnDisable) btnDisable.style.display = 'inline-flex';
+  } else {
+    badge.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">lock_open</span> 2FA отключена';
+    badge.style.background = '#E0E7FF';
+    badge.style.color = '#3730A3';
+    if (btnSetup) btnSetup.style.display = 'inline-flex';
+    if (btnDisable) btnDisable.style.display = 'none';
+  }
+}
+
+async function open2FASetupModal() {
+  const modal = document.getElementById('setup2FAModal');
+  if (!modal) return;
+
+  pending2FASecret = generateSecret();
+  const otpUri = generateURI({
+    secret: pending2FASecret,
+    label: 'Командировки',
+    issuer: 'Учет Командировок'
+  });
+
+  const secretTextEl = document.getElementById('twoFactorSecretText');
+  if (secretTextEl) secretTextEl.innerText = pending2FASecret;
+
+  const canvas = document.getElementById('twoFactorQrCanvas');
+  if (canvas) {
+    try {
+      await QRCode.toCanvas(canvas, otpUri, {
+        width: 200,
+        margin: 1,
+        color: {
+          dark: '#1E293B',
+          light: '#FFFFFF'
+        }
+      });
+    } catch (err) {
+      console.error('Ошибка создания QR-кода:', err);
+    }
+  }
+
+  const verifyInput = document.getElementById('totpSetupVerifyInput');
+  if (verifyInput) verifyInput.value = '';
+
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function close2FASetupModal() {
+  const modal = document.getElementById('setup2FAModal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+  pending2FASecret = null;
+}
+
+function handleConfirm2FASetup(event) {
+  event.preventDefault();
+  const input = document.getElementById('totpSetupVerifyInput');
+  const token = (input?.value || '').trim();
+
+  if (!token || token.length !== 6 || !pending2FASecret) {
+    showToast("⚠️ Введите 6-значный код из Яндекс Ключа!");
+    return;
+  }
+
+  const result = verifySync({ token, secret: pending2FASecret });
+  if (result && result.valid) {
+    localStorage.setItem(TWO_FACTOR_KEY, pending2FASecret);
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    localStorage.setItem(TWO_FACTOR_SESSION_KEY, String(expiresAt));
+    close2FASetupModal();
+    update2FAStatusUI();
+    showToast("✅ 2FA успешно привязана к Яндекс Ключу!");
+  } else {
+    showToast("❌ Неверный проверочный код! Проверьте время на телефоне и попробуйте снова.");
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  }
+}
+
+function disable2FA() {
+  if (!confirm("Вы уверены, что хотите отключить 2FA авторизацию?")) return;
+  localStorage.removeItem(TWO_FACTOR_KEY);
+  localStorage.removeItem(TWO_FACTOR_SESSION_KEY);
+  update2FAStatusUI();
+  showToast("🔓 2FA авторизация отключена");
+}
+

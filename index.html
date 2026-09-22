@@ -409,6 +409,27 @@
         </button>
       </div>
 
+      <!-- КАРТОЧКА: ЗАЩИТА И 2FA АВТОРИЗАЦИЯ (ЯНДЕКС КЛЮЧ) -->
+      <div class="card" style="border: 1px solid #C7D2FE; background: #EEF2FF;">
+        <div class="card-title" style="color: #3730A3;">
+          <span class="material-symbols-outlined" style="color: #4F46E5;">security</span> Защита входа (2FA Яндекс Ключ / TOTP)
+        </div>
+        <p style="font-size: 13px; color: #4338CA; margin-bottom: 14px;">
+          Защитите доступ к чекам и расходам 6-значным кодом двухфакторной аутентификации из приложения <strong>Яндекс Ключ</strong>.
+        </p>
+        <div id="twoFactorStatusBadge" style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:6px 12px; border-radius:8px; margin-bottom:14px; background:#E0E7FF; color:#3730A3;">
+          <span class="material-symbols-outlined" style="font-size:18px;">lock_open</span> 2FA отключена
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button id="btnSetup2FA" class="btn" style="background:#4F46E5; font-size:13px; padding:10px 16px;" onclick="open2FASetupModal()">
+            <span class="material-symbols-outlined" style="font-size:18px;">qr_code_scanner</span> Настроить Яндекс Ключ
+          </button>
+          <button id="btnDisable2FA" class="btn btn-secondary" style="color:#DC2626; border:1px solid #DC2626; font-size:13px; padding:10px 16px; display:none;" onclick="disable2FA()">
+            <span class="material-symbols-outlined" style="font-size:18px;">lock_open</span> Отключить 2FA
+          </button>
+        </div>
+      </div>
+
       <!-- КАРТОЧКА: СПРАВОЧНИКИ -->
       <div class="card">
         <div class="card-title">
@@ -726,6 +747,76 @@
       <iframe id="photoViewerPdfFrame" style="width:100%; height:80vh; border:none; border-radius:8px; background:#fff; display:none;"></iframe>
     </div>
     <div id="photoViewerCaption" style="color:#FFFFFF; margin-top:14px; font-size:14px; font-weight:500; text-align:center; background:rgba(255,255,255,0.15); padding:6px 16px; border-radius:20px; backdrop-filter:blur(10px);" onclick="event.stopPropagation()"></div>
+  </div>
+
+  <!-- 2FA LOCK SCREEN OVERLAY -->
+  <div id="lockScreenOverlay" class="lock-screen-overlay" style="display: none;">
+    <div class="lock-screen-card">
+      <div style="width: 56px; height: 56px; border-radius: 50%; background: #EEF2FF; color: #4F46E5; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+        <span class="material-symbols-outlined" style="font-size: 32px;">lock</span>
+      </div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 6px;">Вход защищен 2FA</h2>
+      <p style="font-size: 13px; color: #64748B; margin-bottom: 16px;">
+        Введите 6-значный одноразовый код из приложения <strong>Яндекс Ключ</strong>
+      </p>
+
+      <form id="totpAuthForm" onsubmit="handleVerify2FALogin(event)">
+        <input type="text" id="totpLoginInput" class="totp-input-code" placeholder="000000" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" autofocus required>
+        
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 18px; font-size: 13px; color: #475569;">
+          <input type="checkbox" id="totpRememberMe" checked style="width: 16px; height: 16px; cursor: pointer;">
+          <label for="totpRememberMe" style="cursor: pointer;">Запомнить на 30 дней</label>
+        </div>
+
+        <button type="submit" class="btn" style="width: 100%; padding: 12px; font-size: 15px; font-weight: 600; background: #4F46E5;">
+          <span class="material-symbols-outlined">key</span> Войти
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНОЕ ОКНО НАСТРОЙКИ 2FA / QR-КОД -->
+  <div id="setup2FAModal" class="bottom-sheet-backdrop" onclick="close2FASetupModal()">
+    <div class="bottom-sheet-card" onclick="event.stopPropagation()" style="max-width: 480px; margin: auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #E1E2EC; padding-bottom:10px;">
+        <strong style="font-size:17px; color:#4F46E5; display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined">security</span> Настройка Яндекс Ключа
+        </strong>
+        <span class="material-symbols-outlined" style="cursor:pointer; color:#666; font-size:24px;" onclick="close2FASetupModal()">close</span>
+      </div>
+
+      <div style="text-align:center;">
+        <p style="font-size:13px; color:#475569; margin-bottom:14px; line-height:1.4;">
+          1. Откройте <strong>Яндекс Ключ</strong> на телефоне<br>
+          2. Нажмите <strong>«+» (Добавить аккаунт)</strong> и отсканируйте QR-код:
+        </p>
+
+        <div style="background:#FFFFFF; padding:12px; border-radius:16px; display:inline-block; border:1px solid #CBD5E1; box-shadow:0 4px 12px rgba(0,0,0,0.06); margin-bottom:14px;">
+          <canvas id="twoFactorQrCanvas" style="display:block; width:200px; height:200px;"></canvas>
+        </div>
+
+        <div style="font-size:12px; color:#64748B; margin-bottom:14px; word-break:break-all;">
+          Или введите ключ вручную:<br>
+          <strong id="twoFactorSecretText" style="font-family:monospace; color:#1E293B; font-size:13px; background:#F1F5F9; padding:4px 8px; border-radius:6px; user-select:all;"></strong>
+        </div>
+
+        <form id="verifySetupForm" onsubmit="handleConfirm2FASetup(event)" style="border-top:1px dashed #CBD5E1; padding-top:14px;">
+          <label style="font-size:13px; font-weight:600; color:#334155; display:block; margin-bottom:6px;">
+            3. Введите 6-значный код из Яндекс Ключа для проверки:
+          </label>
+          <input type="text" id="totpSetupVerifyInput" class="totp-input-code" placeholder="000000" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" required style="margin:8px 0 14px;">
+
+          <div style="display:flex; gap:10px;">
+            <button type="submit" class="btn" style="flex:2; background:#4F46E5;">
+              <span class="material-symbols-outlined">check_circle</span> Активировать 2FA
+            </button>
+            <button type="button" class="btn btn-secondary" style="flex:1;" onclick="close2FASetupModal()">
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <div id="toast">Сообщение</div>

@@ -1402,3 +1402,55 @@ header h1 {
   to { transform: rotate(360deg); }
 }
 
+/* ===== 2FA AUTH SCREEN & SETTINGS ===== */
+.lock-screen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.lock-screen-card {
+  background: #FFFFFF;
+  border-radius: 24px;
+  max-width: 380px;
+  width: 100%;
+  padding: 32px 24px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.totp-input-code {
+  font-size: 28px;
+  letter-spacing: 8px;
+  text-align: center;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--md-sys-color-primary);
+  background: #F1F5F9;
+  border: 2px solid #CBD5E1;
+  border-radius: 12px;
+  padding: 12px;
+  width: 100%;
+  margin: 16px 0;
+  transition: all 0.2s ease;
+}
+
+.totp-input-code:focus {
+  border-color: var(--md-sys-color-primary);
+  background: #FFFFFF;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 85, 204, 0.2);
+}
+
+

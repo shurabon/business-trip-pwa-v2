@@ -14,7 +14,9 @@
     "docx": "^9.7.1",
     "exceljs": "^4.4.0",
     "html2canvas": "^1.4.1",
-    "jspdf": "^2.5.2"
+    "jspdf": "^2.5.2",
+    "otplib": "^13.5.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "vite": "^6.0.0"
