@@ -229,6 +229,9 @@ function setupDefaults() {
   window.handleConfirm2FASetup = handleConfirm2FASetup;
   window.disable2FA = disable2FA;
   window.handleVerify2FALogin = handleVerify2FALogin;
+  window.check2FAAuthGate = check2FAAuthGate;
+  window.update2FAStatusUI = update2FAStatusUI;
+  window.hideLockScreen = hideLockScreen;
 }
 
 function loadFuelSettingsIntoInputs() {

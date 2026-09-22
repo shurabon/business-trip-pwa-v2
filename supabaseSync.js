@@ -391,9 +391,10 @@ export async function syncWithSupabase() {
     }
   }
 
-  // 8. Синхронизация FUEL SETTINGS
+  // 8. Синхронизация FUEL SETTINGS & 2FA SECURITY
   try {
     const localFuel = getFuelSettings();
+    const local2FASecret = localStorage.getItem('btrip_2fa_secret') || '';
     const remoteFuelRes = await supabaseFetch('fuel_settings?id=eq.default');
     if (remoteFuelRes && remoteFuelRes.length > 0) {
       const rf = remoteFuelRes[0];
@@ -403,6 +404,36 @@ export async function syncWithSupabase() {
         if (rf.settings.pricePerLiter) localStorage.setItem('fuelPricePerLiter', rf.settings.pricePerLiter);
         if (rf.settings.deductibleKm) localStorage.setItem('depreciationDeductibleKm', rf.settings.deductibleKm);
         if (rf.settings.ratePerKm) localStorage.setItem('depreciationRatePerKm', rf.settings.ratePerKm);
+
+        // Синхронизация 2FA секрета
+        if (rf.settings.twoFactorSecret) {
+          const currentSecret = localStorage.getItem('btrip_2fa_secret');
+          if (currentSecret !== rf.settings.twoFactorSecret) {
+            localStorage.setItem('btrip_2fa_secret', rf.settings.twoFactorSecret);
+            // Если на этом устройстве сессия еще не подтверждена - триггерим проверку
+            if (typeof window.check2FAAuthGate === 'function') window.check2FAAuthGate();
+            if (typeof window.update2FAStatusUI === 'function') window.update2FAStatusUI();
+          }
+        } else if (rf.settings.twoFactorSecret === '' && localStorage.getItem('btrip_2fa_secret')) {
+          // 2FA была отключена на другом устройстве
+          localStorage.removeItem('btrip_2fa_secret');
+          localStorage.removeItem('btrip_2fa_session_expires');
+          if (typeof window.hideLockScreen === 'function') window.hideLockScreen();
+          if (typeof window.update2FAStatusUI === 'function') window.update2FAStatusUI();
+        }
+      }
+
+      // Если локально включили 2FA, а в облаке еще нет - пушим в облако
+      if (local2FASecret && rf.settings && rf.settings.twoFactorSecret !== local2FASecret) {
+        await supabaseFetch('fuel_settings', {
+          method: 'POST',
+          headers: { 'Prefer': 'resolution=merge-duplicates' },
+          body: JSON.stringify({
+            id: 'default',
+            settings: { ...rf.settings, ...localFuel, twoFactorSecret: local2FASecret },
+            updated_at: new Date().toISOString()
+          })
+        });
       }
     } else {
       await supabaseFetch('fuel_settings', {
@@ -410,13 +441,13 @@ export async function syncWithSupabase() {
         headers: { 'Prefer': 'resolution=merge-duplicates' },
         body: JSON.stringify({
           id: 'default',
-          settings: localFuel,
+          settings: { ...localFuel, twoFactorSecret: local2FASecret },
           updated_at: new Date().toISOString()
         })
       });
     }
-  } catch (e) {
-    console.warn("Fuel settings sync error:", e);
+  } catch (err) {
+    console.warn("Fuel settings / 2FA sync error:", err);
   }
 
   const finalTrips = await db.trips.count();
