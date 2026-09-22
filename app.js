@@ -2774,22 +2774,40 @@ async function goToStatusFilter(statusName) {
 }
 
 async function goToTripCard(tripId) {
-  switchTab('summaryTab');
+  // 1. Switch active tab classes directly without full asynchronous loadData() trigger
+  sessionStorage.setItem('activeTab', 'summaryTab');
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
+
+  const targetContent = document.getElementById('summaryTab');
+  if (targetContent) targetContent.classList.add('active');
+
+  const targetNavTab = document.querySelector(`.nav-tab[onclick*="summaryTab"]`);
+  if (targetNavTab) targetNavTab.classList.add('active');
+
+  const targetMobileNav = document.querySelector(`.mobile-nav-item[onclick*="summaryTab"]`);
+  if (targetMobileNav) targetMobileNav.classList.add('active');
+
+  // 2. Reset filters to show all
   const filterInput = document.getElementById('summaryStatusFilter');
   if (filterInput) {
     filterInput.value = 'all';
   }
   document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
+
+  // 3. Render filtered list
   await renderFilteredSummaryList();
 
-  setTimeout(() => {
+  // 4. Scroll and highlight smoothly
+  requestAnimationFrame(() => {
     const card = document.getElementById(`card-container-${tripId}`);
     if (card) {
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
       card.classList.add('trip-card-gentle-highlight');
       setTimeout(() => card.classList.remove('trip-card-gentle-highlight'), 2300);
     }
-  }, 200);
+  });
 }
 
 // ===== QUICK PAYMENT MODAL LOGIC =====

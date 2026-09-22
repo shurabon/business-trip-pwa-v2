@@ -1,4 +1,4 @@
-const CACHE_NAME = 'business-trips-pwa-v8-2fa-instant-cloud-sync';
+const CACHE_NAME = 'business-trips-pwa-v9-fix-bounce';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
