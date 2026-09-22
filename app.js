@@ -3040,6 +3040,8 @@ function handleConfirm2FASetup(event) {
     close2FASetupModal();
     update2FAStatusUI();
     showToast("✅ 2FA успешно привязана к Яндекс Ключу!");
+    // Мгновенно отправляем 2FA секрет в облако Supabase
+    scheduleAutoSync(100);
   } else {
     showToast("❌ Неверный проверочный код! Проверьте время на телефоне и попробуйте снова.");
     if (input) {
@@ -3049,11 +3051,13 @@ function handleConfirm2FASetup(event) {
   }
 }
 
-function disable2FA() {
+async function disable2FA() {
   if (!confirm("Вы уверены, что хотите отключить 2FA авторизацию?")) return;
   localStorage.removeItem(TWO_FACTOR_KEY);
   localStorage.removeItem(TWO_FACTOR_SESSION_KEY);
   update2FAStatusUI();
   showToast("🔓 2FA авторизация отключена");
+  // Мгновенно обновляем облако Supabase
+  scheduleAutoSync(100);
 }
 
