@@ -985,20 +985,23 @@ export async function exportWaybillDocx(tripId) {
   });
 
   // Надежный двухколоночный блок подписей без рамок (чтобы Главный бухгалтер никогда не разъезжался)
-  const noBorders = {
-    top: { style: BorderStyle.NONE },
-    bottom: { style: BorderStyle.NONE },
-    left: { style: BorderStyle.NONE },
-    right: { style: BorderStyle.NONE }
+  const noTableBorders = {
+    top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" }
   };
   const signTable = new Table({
+    borders: noTableBorders,
     columnWidths: [7992, 7992],
     width: { size: totalW2, type: WidthType.DXA },
     rows: [
       new TableRow({
         children: [
           new TableCell({
-            borders: noBorders,
+            borders: noTableBorders,
             width: { size: 7992, type: WidthType.DXA },
             children: [
               new Paragraph({
@@ -1009,7 +1012,7 @@ export async function exportWaybillDocx(tripId) {
             ]
           }),
           new TableCell({
-            borders: noBorders,
+            borders: noTableBorders,
             width: { size: 7992, type: WidthType.DXA },
             children: [
               new Paragraph({
