@@ -1,4 +1,4 @@
-const CACHE_NAME = 'business-trips-pwa-v9-fix-bounce';
+const CACHE_NAME = 'business-trips-pwa-v10-2fa-fix';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

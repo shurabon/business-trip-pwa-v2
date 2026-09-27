@@ -2909,20 +2909,62 @@ document.addEventListener('DOMContentLoaded', () => {
 // ===== 2FA AUTHENTICATION (YANDEX KEY / TOTP) =====
 const TWO_FACTOR_KEY = 'btrip_2fa_secret';
 const TWO_FACTOR_SESSION_KEY = 'btrip_2fa_session_expires';
+const TWO_FACTOR_ACTIVE_SESSION_KEY = 'btrip_2fa_active_unlocked';
+const INACTIVITY_LOCK_TIMEOUT_MS = 15 * 60 * 1000; // 15 минут неактивности
+
+let inactivityTimer = null;
 
 function is2FAEnabled() {
   const secret = localStorage.getItem(TWO_FACTOR_KEY);
   return !!(secret && secret.trim().length > 0);
 }
 
+function resetInactivityTimer() {
+  if (inactivityTimer) clearTimeout(inactivityTimer);
+  if (!is2FAEnabled()) return;
+
+  inactivityTimer = setTimeout(() => {
+    // Автоблокировка при простое 15 минут
+    sessionStorage.removeItem(TWO_FACTOR_ACTIVE_SESSION_KEY);
+    showLockScreen();
+    showToast("🔒 Сессия заблокирована из-за неактивности (15 мин)");
+  }, INACTIVITY_LOCK_TIMEOUT_MS);
+}
+
+// Отслеживание активности пользователя
+['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
+  window.addEventListener(evt, () => resetInactivityTimer(), { passive: true });
+});
+
+// Блокировка если вкладка была неактивна более 15 минут
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    sessionStorage.setItem('btrip_last_inactive_time', String(Date.now()));
+  } else if (document.visibilityState === 'visible') {
+    const lastInactive = sessionStorage.getItem('btrip_last_inactive_time');
+    if (lastInactive && (Date.now() - parseInt(lastInactive, 10)) > INACTIVITY_LOCK_TIMEOUT_MS) {
+      sessionStorage.removeItem(TWO_FACTOR_ACTIVE_SESSION_KEY);
+      check2FAAuthGate();
+    } else {
+      resetInactivityTimer();
+    }
+  }
+});
+
 function check2FAAuthGate() {
   if (!is2FAEnabled()) return;
 
-  const sessionExpires = localStorage.getItem(TWO_FACTOR_SESSION_KEY);
+  const isUnlockedThisSession = sessionStorage.getItem(TWO_FACTOR_ACTIVE_SESSION_KEY) === 'true';
+  const rememberExpires = localStorage.getItem(TWO_FACTOR_SESSION_KEY);
   const now = Date.now();
 
-  if (!sessionExpires || now > parseInt(sessionExpires)) {
+  const isRemembered = rememberExpires && now < parseInt(rememberExpires, 10);
+
+  // Требуем ключ, если сессия в этой вкладке не разблокирована и устройство не "запомнено"
+  if (!isUnlockedThisSession && !isRemembered) {
     showLockScreen();
+  } else {
+    resetInactivityTimer();
   }
 }
 
@@ -2945,6 +2987,7 @@ function hideLockScreen() {
     overlay.style.display = 'none';
     document.body.style.overflow = '';
   }
+  resetInactivityTimer();
 }
 
 function handleVerify2FALogin(event) {
@@ -2952,22 +2995,33 @@ function handleVerify2FALogin(event) {
   const input = document.getElementById('totpLoginInput');
   const rememberMe = document.getElementById('totpRememberMe')?.checked;
   const token = (input?.value || '').trim();
-  const secret = localStorage.getItem(TWO_FACTOR_KEY);
+  const secret = (localStorage.getItem(TWO_FACTOR_KEY) || '').trim();
 
   if (!token || token.length !== 6) {
     showToast("⚠️ Введите 6-значный код из Яндекс Ключа!");
     return;
   }
 
-  const result = verifySync({ token, secret });
+  if (!secret) {
+    showToast("⚠️ Секретный ключ 2FA не найден. Попробуйте синхронизировать базу.");
+    hideLockScreen();
+    return;
+  }
+
+  // epochTolerance: 2 дает допуск ±60 секунд для компенсации расхождения времени между ПК и телефоном
+  const result = verifySync({ token, secret, epochTolerance: 2 });
   if (result && result.valid) {
-    const days = rememberMe ? 30 : 1;
-    const expiresAt = Date.now() + days * 24 * 60 * 60 * 1000;
-    localStorage.setItem(TWO_FACTOR_SESSION_KEY, String(expiresAt));
+    sessionStorage.setItem(TWO_FACTOR_ACTIVE_SESSION_KEY, 'true');
+    if (rememberMe) {
+      const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 дней
+      localStorage.setItem(TWO_FACTOR_SESSION_KEY, String(expiresAt));
+    } else {
+      localStorage.removeItem(TWO_FACTOR_SESSION_KEY); // Только на текущую сессию браузера
+    }
     hideLockScreen();
     showToast("🔓 Авторизация успешна! Добро пожаловать!");
   } else {
-    showToast("❌ Неверный или устаревший код из Яндекс Ключа!");
+    showToast("❌ Неверный или устаревший код! Проверьте время на телефоне и ПК.");
     if (input) {
       input.value = '';
       input.focus();
@@ -3050,9 +3104,10 @@ function handleConfirm2FASetup(event) {
     return;
   }
 
-  const result = verifySync({ token, secret: pending2FASecret });
+  const result = verifySync({ token, secret: pending2FASecret, epochTolerance: 2 });
   if (result && result.valid) {
     localStorage.setItem(TWO_FACTOR_KEY, pending2FASecret);
+    sessionStorage.setItem(TWO_FACTOR_ACTIVE_SESSION_KEY, 'true');
     const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
     localStorage.setItem(TWO_FACTOR_SESSION_KEY, String(expiresAt));
     close2FASetupModal();
@@ -3073,6 +3128,7 @@ async function disable2FA() {
   if (!confirm("Вы уверены, что хотите отключить 2FA авторизацию?")) return;
   localStorage.removeItem(TWO_FACTOR_KEY);
   localStorage.removeItem(TWO_FACTOR_SESSION_KEY);
+  sessionStorage.removeItem(TWO_FACTOR_ACTIVE_SESSION_KEY);
   update2FAStatusUI();
   showToast("🔓 2FA авторизация отключена");
   // Мгновенно обновляем облако Supabase
