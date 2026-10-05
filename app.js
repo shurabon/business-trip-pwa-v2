@@ -383,8 +383,11 @@ async function syncWithGithub() {
     return;
   }
 
+  const ok = confirm("⚠️ Внимание: GitHub Gist используется только как архивный бэкап.\nОсновная синхронизация выполняется автоматически через Supabase.\n\nПродолжить ручную синхронизацию через GitHub Gist?");
+  if (!ok) return;
+
   const badge = document.getElementById('syncStatusBadge');
-  if (badge) badge.innerHTML = '⏳ Идёт синхронизация через GitHub Gist...';
+  if (badge) badge.innerHTML = '⏳ Идёт резервная синхронизация через GitHub Gist...';
 
   // Таймаут безопасности (60 секунд), чтобы процесс не висел перманентно при больших базах с фото
   const timeoutPromise = new Promise((_, reject) => 
@@ -405,17 +408,19 @@ async function syncWithGithub() {
     }
 
     if (res.isNew) {
-      if (badge) badge.innerHTML = `🟢 База выгружена впервые. Поездок: ${res.finalTripsCount}. Gist ID: <strong>${gistId}</strong>`;
-      showToast(`✅ База загружена в GitHub Gist! Скопируйте Gist ID для второго устройства.`);
+      if (badge) badge.innerHTML = `🟢 База выгружена впервые в Gist. Поездок: ${res.finalTripsCount}. Gist ID: <strong>${gistId}</strong>`;
+      showToast(`✅ База загружена в GitHub Gist!`);
     } else {
-      if (badge) badge.innerHTML = `🟢 Синхронизировано в ${timeStr}. Поездок в базе: ${res.finalTripsCount}. Gist ID: <strong>${gistId}</strong>`;
-      showToast(`✅ Синхронизация выполнена! Поездок: ${res.finalTripsCount}`);
+      if (badge) badge.innerHTML = `🟢 Резервная копия Gist обновлена в ${timeStr}. Поездок: ${res.finalTripsCount}`;
+      showToast(`✅ Gist синхронизирован! Поездок: ${res.finalTripsCount}`);
     }
     await loadData();
+    // Сразу отправляем полученные данные в главное облако Supabase
+    scheduleAutoSync(500);
   } catch (err) {
     const errMsg = err?.message || String(err);
-    if (badge) badge.innerHTML = `🔴 Ошибка синхронизации: ${errMsg}`;
-    showToast("❌ Ошибка синхронизации: " + errMsg);
+    if (badge) badge.innerHTML = `🔴 Ошибка синхронизации Gist: ${errMsg}`;
+    showToast("❌ Ошибка синхронизации Gist: " + errMsg);
   }
 }
 

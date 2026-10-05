@@ -162,38 +162,7 @@ export async function syncWithSupabase() {
   const remoteTrips = await supabaseFetch('trips?select=*');
   const localTrips = await db.trips.toArray();
 
-  // Отправляем новые / обновленные локальные поездки в Supabase
-  for (const lt of localTrips) {
-    if (isRecordDeleted('trips', lt)) {
-      await db.trips.delete(lt.id);
-      continue;
-    }
-    const rt = remoteTrips?.find(r => String(r.id) === String(lt.id));
-    if (!rt || new Date(lt.updatedAt || 0) > new Date(rt.updated_at || 0)) {
-      await supabaseFetch('trips', {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify({
-          id: lt.id,
-          app_no: lt.appNo || '',
-          client: lt.client || '',
-          location: lt.location || '',
-          work_type: lt.workType || '',
-          transport: lt.transport || '',
-          start_date: lt.startDate || '',
-          finish_date: lt.finishDate || '',
-          odo_start: lt.odoStart || 0,
-          odo_finish: lt.odoFinish || 0,
-          status: lt.status || 'не подготовлен',
-          per_diem_rate: lt.perDiemRate || 1100,
-          note: lt.note || '',
-          updated_at: lt.updatedAt || new Date().toISOString()
-        })
-      });
-    }
-  }
-
-  // Принимаем поездки из Supabase в локальную базу
+  // Принимаем поездки из Supabase в локальную базу (Облако - первоисточник)
   for (const rt of (remoteTrips || [])) {
     if (isRecordDeleted('trips', rt)) {
       await db.trips.delete(rt.id);
@@ -218,8 +187,40 @@ export async function syncWithSupabase() {
     };
     if (!lt) {
       await db.trips.put(tripObj);
-    } else if (new Date(rt.updated_at || 0) > new Date(lt.updatedAt || 0)) {
+    } else if (new Date(rt.updated_at || 0).getTime() >= new Date(lt.updatedAt || 0).getTime()) {
       await db.trips.put(tripObj);
+    }
+  }
+
+  // Отправляем ТОЛЬКО действительно более свежие локальные поездки в Supabase
+  const refreshedLocalTrips = await db.trips.toArray();
+  for (const lt of refreshedLocalTrips) {
+    if (isRecordDeleted('trips', lt)) {
+      continue;
+    }
+    const rt = remoteTrips?.find(r => String(r.id) === String(lt.id));
+    // Отправляем в облако ТОЛЬКО если записи нет в облаке ИЛИ локальная строго новее облачной
+    if (!rt || (new Date(lt.updatedAt || 0).getTime() > new Date(rt.updated_at || 0).getTime())) {
+      await supabaseFetch('trips', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify({
+          id: lt.id,
+          app_no: lt.appNo || '',
+          client: lt.client || '',
+          location: lt.location || '',
+          work_type: lt.workType || '',
+          transport: lt.transport || '',
+          start_date: lt.startDate || '',
+          finish_date: lt.finishDate || '',
+          odo_start: lt.odoStart || 0,
+          odo_finish: lt.odoFinish || 0,
+          status: lt.status || 'не подготовлен',
+          per_diem_rate: lt.perDiemRate || 1100,
+          note: lt.note || '',
+          updated_at: lt.updatedAt || new Date().toISOString()
+        })
+      });
     }
   }
 
@@ -227,43 +228,7 @@ export async function syncWithSupabase() {
   const remoteExpenses = await supabaseFetch('expenses?select=*');
   const localExpenses = await db.expenses.toArray();
 
-  for (const le of localExpenses) {
-    if (isRecordDeleted('expenses', le)) {
-      await db.expenses.delete(le.id);
-      continue;
-    }
-    const re = remoteExpenses?.find(r => String(r.id) === String(le.id));
-    
-    // Если есть локальный чек Base64 и нет receipt_url в облаке — загружаем в Storage
-    let receiptUrl = le.receiptUrl || (re ? re.receipt_url : null);
-    if (!receiptUrl && le.receiptBase64) {
-      receiptUrl = await uploadReceiptToStorage(le.receiptBase64, le.receiptName);
-      if (receiptUrl) {
-        await db.expenses.update(le.id, { receiptUrl });
-      }
-    }
-
-    if (!re || new Date(le.updatedAt || 0) > new Date(re.updated_at || 0)) {
-      await supabaseFetch('expenses', {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify({
-          id: le.id,
-          trip_id: String(le.tripId || ''),
-          date: le.date || '',
-          amount: parseFloat(le.amount) || 0,
-          description: le.description || '',
-          category: le.category || '',
-          payment_type: le.paymentType || 'cash',
-          article_code: le.articleCode || '',
-          receipt_url: receiptUrl || null,
-          receipt_name: le.receiptName || '',
-          updated_at: le.updatedAt || new Date().toISOString()
-        })
-      });
-    }
-  }
-
+  // Принимаем расходы из Supabase в локальную базу (Облако - первоисточник)
   for (const re of (remoteExpenses || [])) {
     if (isRecordDeleted('expenses', re)) {
       await db.expenses.delete(re.id);
@@ -286,8 +251,46 @@ export async function syncWithSupabase() {
     };
     if (!le) {
       await db.expenses.put(expObj);
-    } else if (new Date(re.updated_at || 0) > new Date(le.updatedAt || 0)) {
+    } else if (new Date(re.updated_at || 0).getTime() >= new Date(le.updatedAt || 0).getTime()) {
       await db.expenses.put({ ...expObj, receiptBase64: le.receiptBase64 || '' });
+    }
+  }
+
+  // Отправляем ТОЛЬКО действительно более свежие локальные расходы в Supabase
+  const refreshedLocalExpenses = await db.expenses.toArray();
+  for (const le of refreshedLocalExpenses) {
+    if (isRecordDeleted('expenses', le)) {
+      continue;
+    }
+    const re = remoteExpenses?.find(r => String(r.id) === String(le.id));
+    
+    // Если есть локальный чек Base64 и нет receipt_url в облаке — загружаем в Storage
+    let receiptUrl = le.receiptUrl || (re ? re.receipt_url : null);
+    if (!receiptUrl && le.receiptBase64) {
+      receiptUrl = await uploadReceiptToStorage(le.receiptBase64, le.receiptName);
+      if (receiptUrl) {
+        await db.expenses.update(le.id, { receiptUrl });
+      }
+    }
+
+    if (!re || (new Date(le.updatedAt || 0).getTime() > new Date(re.updated_at || 0).getTime())) {
+      await supabaseFetch('expenses', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify({
+          id: le.id,
+          trip_id: String(le.tripId || ''),
+          date: le.date || '',
+          amount: parseFloat(le.amount) || 0,
+          description: le.description || '',
+          category: le.category || '',
+          payment_type: le.paymentType || 'cash',
+          article_code: le.articleCode || '',
+          receipt_url: receiptUrl || null,
+          receipt_name: le.receiptName || '',
+          updated_at: le.updatedAt || new Date().toISOString()
+        })
+      });
     }
   }
 
@@ -295,28 +298,7 @@ export async function syncWithSupabase() {
   const remotePayments = await supabaseFetch('payments?select=*');
   const localPayments = await db.payments.toArray();
 
-  for (const lp of localPayments) {
-    if (isRecordDeleted('payments', lp)) {
-      await db.payments.delete(lp.id);
-      continue;
-    }
-    const rp = remotePayments?.find(r => String(r.id) === String(lp.id));
-    if (!rp || new Date(lp.updatedAt || 0) > new Date(rp.updated_at || 0)) {
-      await supabaseFetch('payments', {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify({
-          id: lp.id,
-          trip_id: String(lp.tripId || ''),
-          date: lp.date || '',
-          amount: parseFloat(lp.amount) || 0,
-          note: lp.note || '',
-          updated_at: lp.updatedAt || new Date().toISOString()
-        })
-      });
-    }
-  }
-
+  // Принимаем выплаты из Supabase в локальную базу (Облако - первоисточник)
   for (const rp of (remotePayments || [])) {
     if (isRecordDeleted('payments', rp)) {
       await db.payments.delete(rp.id);
@@ -333,8 +315,31 @@ export async function syncWithSupabase() {
     };
     if (!lp) {
       await db.payments.put(payObj);
-    } else if (new Date(rp.updated_at || 0) > new Date(lp.updatedAt || 0)) {
+    } else if (new Date(rp.updated_at || 0).getTime() >= new Date(lp.updatedAt || 0).getTime()) {
       await db.payments.put(payObj);
+    }
+  }
+
+  // Отправляем ТОЛЬКО действительно более свежие локальные выплаты в Supabase
+  const refreshedLocalPayments = await db.payments.toArray();
+  for (const lp of refreshedLocalPayments) {
+    if (isRecordDeleted('payments', lp)) {
+      continue;
+    }
+    const rp = remotePayments?.find(r => String(r.id) === String(lp.id));
+    if (!rp || (new Date(lp.updatedAt || 0).getTime() > new Date(rp.updated_at || 0).getTime())) {
+      await supabaseFetch('payments', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify({
+          id: lp.id,
+          trip_id: String(lp.tripId || ''),
+          date: lp.date || '',
+          amount: parseFloat(lp.amount) || 0,
+          note: lp.note || '',
+          updated_at: lp.updatedAt || new Date().toISOString()
+        })
+      });
     }
   }
 
@@ -342,9 +347,19 @@ export async function syncWithSupabase() {
   const remoteClients = await supabaseFetch('clients?select=*');
   const localClients = await db.clients.toArray();
 
-  for (const lc of localClients) {
-    const rc = remoteClients.find(r => r.name.toLowerCase() === lc.name.toLowerCase());
-    if (!rc || new Date(lc.updatedAt || 0) > new Date(rc.updated_at || 0)) {
+  for (const rc of (remoteClients || [])) {
+    const lc = localClients.find(l => l.name.toLowerCase() === rc.name.toLowerCase());
+    if (!lc) {
+      await db.clients.add({ name: rc.name, address: rc.address || '', updatedAt: rc.updated_at });
+    } else if (new Date(rc.updated_at || 0).getTime() >= new Date(lc.updatedAt || 0).getTime()) {
+      await db.clients.update(lc.id, { address: rc.address || '', updatedAt: rc.updated_at });
+    }
+  }
+
+  const refreshedLocalClients = await db.clients.toArray();
+  for (const lc of refreshedLocalClients) {
+    const rc = remoteClients?.find(r => r.name.toLowerCase() === lc.name.toLowerCase());
+    if (!rc || (new Date(lc.updatedAt || 0).getTime() > new Date(rc.updated_at || 0).getTime())) {
       await supabaseFetch('clients', {
         method: 'POST',
         headers: { 'Prefer': 'resolution=merge-duplicates' },
@@ -354,15 +369,6 @@ export async function syncWithSupabase() {
           updated_at: lc.updatedAt || new Date().toISOString()
         })
       });
-    }
-  }
-
-  for (const rc of remoteClients) {
-    const lc = localClients.find(l => l.name.toLowerCase() === rc.name.toLowerCase());
-    if (!lc) {
-      await db.clients.add({ name: rc.name, address: rc.address || '', updatedAt: rc.updated_at });
-    } else if (new Date(rc.updated_at || 0) > new Date(lc.updatedAt || 0)) {
-      await db.clients.update(lc.id, { address: rc.address || '', updatedAt: rc.updated_at });
     }
   }
 
