@@ -1,4 +1,4 @@
-const CACHE_NAME = 'business-trips-pwa-v13-clean-sync';
+const CACHE_NAME = 'business-trips-pwa-v14-instant-cloud';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

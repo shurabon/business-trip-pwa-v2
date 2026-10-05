@@ -15,9 +15,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   check2FAAuthGate();
   update2FAStatusUI();
   updateNetworkStatus();
-  await seedInitialData();
   setupDefaults();
   setupServiceWorker();
+
+  // 1. Если онлайн — сначала синхронизируем с облаком Supabase, чтобы сразу получить актуальное состояние
+  if (navigator.onLine) {
+    try {
+      updateSyncHeaderIndicator('syncing');
+      const res = await syncWithSupabase();
+      updateSyncHeaderIndicator('synced', res.tripsCount);
+    } catch (err) {
+      console.warn("Initial Supabase sync warning:", err);
+      updateSyncHeaderIndicator('idle');
+    }
+  }
+
+  // 2. Отображаем свежие данные
   await loadData();
 
   const savedTab = sessionStorage.getItem('activeTab');
@@ -25,17 +38,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     switchTab(savedTab);
   }
 
-  // 1. Автоматическая фоновая синхронизация при запуске
-  scheduleAutoSync(500);
-
-  // 2. Автоматическая синхронизация при возврате на вкладку / разблокировке экрана
+  // 3. Автоматическая фоновая синхронизация при возврате на вкладку
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && navigator.onLine) {
-      scheduleAutoSync(1000);
+      scheduleAutoSync(500);
     }
   });
   window.addEventListener('focus', () => {
-    if (navigator.onLine) scheduleAutoSync(1000);
+    if (navigator.onLine) scheduleAutoSync(500);
   });
 });
 
@@ -222,6 +232,7 @@ function setupDefaults() {
   window.closeQuickPaymentModal = closeQuickPaymentModal;
   window.handleQuickAddPayment = handleQuickAddPayment;
   window.executeCloudSync = executeCloudSync;
+  window.forceReloadFromCloud = forceReloadFromCloud;
   window.calculateStartOdoFromLiters = calculateStartOdoFromLiters;
   window.updateAutoFieldsHint = updateAutoFieldsHint;
   window.open2FASetupModal = open2FASetupModal;
@@ -353,6 +364,34 @@ function switchTab(tabId) {
     renderExpensesList();
   } else if (tabId === 'paymentTab') {
     renderPaymentsList();
+  }
+}
+
+async function forceReloadFromCloud() {
+  const ok = confirm("📥 Перезагрузить всю базу напрямую из облака Supabase?\nЛокальная база на этом устройстве будет полностью обновлена до состояния облака.");
+  if (!ok) return;
+
+  const badge = document.getElementById('syncStatusBadge');
+  if (badge) badge.innerHTML = '⏳ Идёт полная загрузка из Supabase Cloud...';
+  showToast("⏳ Загрузка актуальной базы из облака...");
+
+  try {
+    // Очищаем локальные таблицы для идеальной синхронизации
+    await db.trips.clear();
+    await db.expenses.clear();
+    await db.payments.clear();
+    localStorage.removeItem('btrips_deleted_items');
+
+    const res = await syncWithSupabase();
+    await loadData();
+    const timeStr = new Date().toLocaleTimeString('ru-RU');
+    if (badge) {
+      badge.innerHTML = `🟢 База полностью обновлена из облака в ${timeStr}. Поездок: ${res.tripsCount}`;
+    }
+    showToast(`✅ База успешно обновлена из облака! Поездок: ${res.tripsCount}`);
+  } catch (err) {
+    console.error("Force reload error:", err);
+    showToast("❌ Ошибка загрузки из облака: " + err.message);
   }
 }
 
