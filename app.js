@@ -2220,9 +2220,13 @@ function setupServiceWorker() {
       return;
     }
 
-    navigator.serviceWorker.register('/sw.js')
+    const swPath = window.location.pathname.endsWith('/') 
+      ? window.location.pathname + 'sw.js' 
+      : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) + 'sw.js';
+
+    navigator.serviceWorker.register(swPath)
       .then(() => {})
-      .catch(() => {});
+      .catch((err) => { console.warn('SW registration warning:', err); });
   }
 }
 
