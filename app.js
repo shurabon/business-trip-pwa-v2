@@ -1,4 +1,4 @@
-import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregatedSummary, formatDateToRu, getTodayRuDate, parseRuDate, getFuelSettings, calculateCarMetrics, markItemDeleted, cleanupDuplicates } from './db.js';
+import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregatedSummary, formatDateToRu, getTodayRuDate, parseRuDate, getFuelSettings, calculateCarMetrics, markItemDeleted, cleanupDuplicates, enqueueSyncChange } from './db.js';
 import { exportToExcel, exportToPDF, exportAO1Excel, exportReimbursementDocx, exportWaybillDocx } from './reports.js';
 import { exportLocalDbToJson, mergeRemoteDbToLocal, uploadToGithubGist, downloadAndMergeFromGithubGist } from './githubSync.js';
 import { syncWithSupabase, uploadReceiptToStorage } from './supabaseSync.js';
@@ -1825,13 +1825,15 @@ async function deleteTrip(tripId) {
     return;
   }
 
-  // 1. Помечаем командировку как удаленную для синхронизации
+  // 1. Помечаем командировку и ставим в очередь исходящей синхронизации
   markItemDeleted('trips', trip);
+  await enqueueSyncChange('trips', trip.id, 'DELETE', { id: trip.id });
 
   // 2. Находим и удаляем все связанные расходы
   const tripExpenses = await db.expenses.where('tripId').equals(String(tripId)).toArray();
   for (const exp of tripExpenses) {
     markItemDeleted('expenses', exp);
+    await enqueueSyncChange('expenses', exp.id, 'DELETE', { id: exp.id });
     await db.expenses.delete(exp.id);
   }
 
@@ -1839,6 +1841,7 @@ async function deleteTrip(tripId) {
   const tripPayments = await db.payments.where('tripId').equals(String(tripId)).toArray();
   for (const pay of tripPayments) {
     markItemDeleted('payments', pay);
+    await enqueueSyncChange('payments', pay.id, 'DELETE', { id: pay.id });
     await db.payments.delete(pay.id);
   }
 
@@ -1853,7 +1856,10 @@ async function deleteTrip(tripId) {
 async function deleteExpenseItem(expenseId, tripId, targetId) {
   if (confirm("Вы уверены, что хотите удалить этот расход?")) {
     const item = await db.expenses.get(parseInt(expenseId));
-    if (item) markItemDeleted('expenses', item);
+    if (item) {
+      markItemDeleted('expenses', item);
+      await enqueueSyncChange('expenses', item.id, 'DELETE', { id: item.id });
+    }
     await db.expenses.delete(parseInt(expenseId));
     closeEditBottomSheet(targetId);
     showToast("🗑 Расход удален!");
@@ -1865,7 +1871,10 @@ async function deleteExpenseItem(expenseId, tripId, targetId) {
 async function deletePaymentItem(paymentId, tripId, targetId) {
   if (confirm("Вы уверены, что хотите удалить эту выплату?")) {
     const item = await db.payments.get(parseInt(paymentId));
-    if (item) markItemDeleted('payments', item);
+    if (item) {
+      markItemDeleted('payments', item);
+      await enqueueSyncChange('payments', item.id, 'DELETE', { id: item.id });
+    }
     await db.payments.delete(parseInt(paymentId));
     closeEditBottomSheet(targetId);
     showToast("🗑 Выплата удалена!");
@@ -2051,12 +2060,14 @@ async function saveInlineExpense(expenseId, tripId, targetId) {
   }
 
   await db.expenses.update(parseInt(expenseId), updateData);
+  const fullExp = await db.expenses.get(parseInt(expenseId));
+  await enqueueSyncChange('expenses', parseInt(expenseId), 'UPSERT', fullExp || updateData);
 
   closeEditBottomSheet(targetId);
   showToast("✅ Расход обновлен!");
   delete inlinePhotoState[expenseId];
   await loadData();
-  scheduleAutoSync(1500);
+  scheduleAutoSync(500);
 }
 
 async function editPaymentItem(paymentId, tripId) {
@@ -2136,17 +2147,21 @@ async function saveInlinePayment(paymentId, tripId, targetId) {
   const amountVal = parseFloat(document.getElementById(`editPayAmount-${paymentId}`).value) || 0;
   const noteVal = document.getElementById(`editPayNote-${paymentId}`).value;
 
-  await db.payments.update(parseInt(paymentId), {
+  const updateObj = {
     date: formatDateToRu(dateVal),
     amount: amountVal,
     note: noteVal,
     updatedAt: new Date().toISOString()
-  });
+  };
+
+  await db.payments.update(parseInt(paymentId), updateObj);
+  const fullPay = await db.payments.get(parseInt(paymentId));
+  await enqueueSyncChange('payments', parseInt(paymentId), 'UPSERT', fullPay || updateObj);
 
   closeEditBottomSheet(targetId);
   showToast("✅ Выплата обновлена!");
   await loadData();
-  scheduleAutoSync(1500);
+  scheduleAutoSync(500);
 }
 
 function restoreCardView(tripId) {
@@ -2167,7 +2182,7 @@ function restoreCardView(tripId) {
 
 async function handleInlineUpdateTrip(event, tripId) {
   event.preventDefault();
-  await db.trips.update(parseInt(tripId), {
+  const updateObj = {
     appNo: document.getElementById(`inlineServiceApp-${tripId}`).value,
     client: document.getElementById(`inlineClient-${tripId}`).value,
     location: document.getElementById(`inlineTarget-${tripId}`).value,
@@ -2179,11 +2194,15 @@ async function handleInlineUpdateTrip(event, tripId) {
     odoFinish: parseFloat(document.getElementById(`inlineOdoFinish-${tripId}`).value) || 0,
     note: document.getElementById(`inlineNote-${tripId}`).value,
     updatedAt: new Date().toISOString()
-  });
+  };
+
+  await db.trips.update(parseInt(tripId), updateObj);
+  const fullTrip = await db.trips.get(parseInt(tripId));
+  await enqueueSyncChange('trips', parseInt(tripId), 'UPSERT', fullTrip || updateObj);
 
   showToast("✅ Изменения сохранены!");
   await loadData();
-  scheduleAutoSync(1500);
+  scheduleAutoSync(500);
 }
 
 async function generateSelectedReport() {
@@ -2468,11 +2487,12 @@ async function deleteGlobalExpenseItem(expenseId, targetId) {
   if (confirm("Вы уверены, что хотите удалить этот расход?")) {
     const item = await db.expenses.get(parseInt(expenseId));
     if (item) markItemDeleted('expenses', item);
+    await enqueueSyncChange('expenses', parseInt(expenseId), 'DELETE');
     await db.expenses.delete(parseInt(expenseId));
     closeEditBottomSheet(targetId);
     showToast("🗑 Расход удален!");
     await loadData();
-    scheduleAutoSync(1500);
+    scheduleAutoSync(500);
   }
 }
 
@@ -2480,11 +2500,12 @@ async function deleteGlobalPaymentItem(paymentId, targetId) {
   if (confirm("Вы уверены, что хотите удалить эту выплату?")) {
     const item = await db.payments.get(parseInt(paymentId));
     if (item) markItemDeleted('payments', item);
+    await enqueueSyncChange('payments', parseInt(paymentId), 'DELETE');
     await db.payments.delete(parseInt(paymentId));
     closeEditBottomSheet(targetId);
     showToast("🗑 Выплата удалена!");
     await loadData();
-    scheduleAutoSync(1500);
+    scheduleAutoSync(500);
   }
 }
 
@@ -2687,7 +2708,7 @@ async function handleQuickAddExpense(event) {
     fileName = quickSelectedFile.compressed.name;
   }
 
-  await db.expenses.add({
+  const newExpObj = {
     tripId: tripId,
     date: formatDateToRu(rawDate),
     amount: amount,
@@ -2696,12 +2717,15 @@ async function handleQuickAddExpense(event) {
     receiptBase64: base64,
     receiptName: fileName,
     updatedAt: new Date().toISOString()
-  });
+  };
+
+  const newId = await db.expenses.add(newExpObj);
+  await enqueueSyncChange('expenses', newId, 'UPSERT', { ...newExpObj, id: newId });
 
   showToast("✅ Чек сохранен!");
   closeQuickAddModal();
   await loadData();
-  scheduleAutoSync(1500);
+  scheduleAutoSync(500);
 }
 
 // ===== SPEED DIAL LOGIC FOR MOBILE =====
@@ -2769,7 +2793,7 @@ async function handleCreateTripModal(event) {
 
   const defaultStatus = 'не подготовлен';
 
-  await db.trips.add({
+  const newTripObj = {
     appNo: document.getElementById('modalTripServiceApp').value,
     client: clientName,
     location: locationVal,
@@ -2777,18 +2801,21 @@ async function handleCreateTripModal(event) {
     transport: document.getElementById('modalTripTransport').value,
     startDate: formatDateToRu(document.getElementById('modalTripStartDate').value),
     finishDate: formatDateToRu(document.getElementById('modalTripFinishDate').value),
-    odoStart: parseFloat(document.getElementById('modalTripOdoStart').value) || 0,
-    odoFinish: parseFloat(document.getElementById('modalTripOdoFinish').value) || 0,
+    odoStart: parseFloat(document.getElementById('modalTripOdoStart')?.value) || 0,
+    odoFinish: parseFloat(document.getElementById('modalTripOdoFinish')?.value) || 0,
     status: defaultStatus,
     perDiemRate: 1100,
-    note: document.getElementById('modalTripNote').value,
+    note: document.getElementById('modalTripNote')?.value || '',
     updatedAt: new Date().toISOString()
-  });
+  };
+
+  const newId = await db.trips.add(newTripObj);
+  await enqueueSyncChange('trips', newId, 'UPSERT', { ...newTripObj, id: newId });
 
   showToast("✅ Поездка создана!");
   closeCreateTripModal();
   await loadData();
-  scheduleAutoSync(1500);
+  scheduleAutoSync(500);
 }
 
 // ===== DASHBOARD INTERACTION HELPERS =====
@@ -2916,18 +2943,21 @@ async function handleQuickAddPayment(event) {
   const amount = parseFloat(document.getElementById('quickPaymentAmount').value) || 0;
   const note = document.getElementById('quickPaymentNote').value;
 
-  await db.payments.add({
+  const newPaymentObj = {
     tripId: tripId,
     date: formatDateToRu(rawDate),
     amount: amount,
     note: note,
     updatedAt: new Date().toISOString()
-  });
+  };
+
+  const newId = await db.payments.add(newPaymentObj);
+  await enqueueSyncChange('payments', newId, 'UPSERT', { ...newPaymentObj, id: newId });
 
   showToast("✅ Выплата зафиксирована!");
   closeQuickPaymentModal();
   await loadData();
-  scheduleAutoSync(1500);
+  scheduleAutoSync(500);
 }
 
 // Защита поля поиска от автозаполнения браузером (Gist ID / токенами)

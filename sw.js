@@ -1,4 +1,4 @@
-const CACHE_NAME = 'business-trips-pwa-v15-zero-balance';
+const CACHE_NAME = 'business-trips-pwa-v16-1c-outbox-sync';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

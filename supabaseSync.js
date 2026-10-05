@@ -76,77 +76,100 @@ export async function uploadReceiptToStorage(base64Data, originalFileName) {
   }
 }
 
-// Главная функция двусторонней быстрой синхронизации через Supabase
+// Главная функция двусторонней быстрой синхронизации через Supabase (Архитектура Плана Обмена / 1C Transaction Protocol)
 export async function syncWithSupabase(forceFullPull = false) {
   await cleanupDuplicates();
 
-  // 1. Применяем только действительно удаленные пользователем элементы в Supabase
-  const localDeleted = getDeletedItems();
-  if (localDeleted.length > 0) {
-    for (const d of localDeleted) {
-      try {
-        const delId = d.uuid || d.compositeKey || `${d.tableName}_${d.id || d.tripId || ''}`;
-        await supabaseFetch('deleted_items', {
-          method: 'POST',
-          headers: { 'Prefer': 'resolution=merge-duplicates' },
-          body: JSON.stringify({
-            id: delId,
-            table_name: d.tableName,
-            item_id: String(d.id || d.uuid || ''),
-            deleted_at: d.deletedAt || new Date().toISOString()
-          })
-        });
-
-        if (d.tableName && ['trips', 'expenses', 'payments'].includes(d.tableName)) {
-          if (d.id) {
-            await supabaseFetch(`${d.tableName}?id=eq.${d.id}`, { method: 'DELETE' });
+  // ==========================================
+  // ФАЗА 1: ОБРАБОТКА ИСХОДЯЩЕЙ ОЧЕРЕДИ (PUSH OUTBOX)
+  // ==========================================
+  const pendingTransactions = await db.syncQueue.orderBy('id').toArray();
+  for (const tx of pendingTransactions) {
+    try {
+      if (tx.action === 'DELETE') {
+        if (['trips', 'expenses', 'payments'].includes(tx.entityType)) {
+          if (tx.entityId) {
+            await supabaseFetch(`${tx.entityType}?id=eq.${tx.entityId}`, { method: 'DELETE' });
           }
         }
-      } catch (e) {
-        console.warn("Error pushing deleted item:", e);
+      } else if (tx.action === 'UPSERT') {
+        const p = tx.payload || {};
+        if (tx.entityType === 'trips') {
+          await supabaseFetch('trips', {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify({
+              id: tx.entityId,
+              app_no: p.appNo || '',
+              client: p.client || '',
+              location: p.location || '',
+              work_type: p.workType || '',
+              transport: p.transport || '',
+              start_date: p.startDate || '',
+              finish_date: p.finishDate || '',
+              odo_start: p.odoStart || 0,
+              odo_finish: p.odoFinish || 0,
+              status: p.status || 'не подготовлен',
+              per_diem_rate: p.perDiemRate || 1100,
+              note: p.note || '',
+              updated_at: p.updatedAt || new Date().toISOString()
+            })
+          });
+        } else if (tx.entityType === 'expenses') {
+          let receiptUrl = p.receiptUrl || null;
+          if (!receiptUrl && p.receiptBase64) {
+            receiptUrl = await uploadReceiptToStorage(p.receiptBase64, p.receiptName);
+            if (receiptUrl) await db.expenses.update(p.id, { receiptUrl });
+          }
+          await supabaseFetch('expenses', {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify({
+              id: tx.entityId,
+              trip_id: String(p.tripId || ''),
+              date: p.date || '',
+              amount: parseFloat(p.amount) || 0,
+              description: p.description || '',
+              category: p.category || '',
+              payment_type: p.paymentType || 'cash',
+              article_code: p.articleCode || '',
+              receipt_url: receiptUrl,
+              receipt_name: p.receiptName || '',
+              updated_at: p.updatedAt || new Date().toISOString()
+            })
+          });
+        } else if (tx.entityType === 'payments') {
+          await supabaseFetch('payments', {
+            method: 'POST',
+            headers: { 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify({
+              id: tx.entityId,
+              trip_id: String(p.tripId || ''),
+              date: p.date || '',
+              amount: parseFloat(p.amount) || 0,
+              note: p.note || '',
+              updated_at: p.updatedAt || new Date().toISOString()
+            })
+          });
+        }
       }
+      // Успешно отправлено в облако - удаляем транзакцию из очереди
+      await db.syncQueue.delete(tx.id);
+    } catch (txErr) {
+      console.warn("Failed to push sync transaction:", tx, txErr);
+      break;
     }
   }
 
-  // 2. Скачиваем актуальный список удалений из Supabase
-  const remoteDeleted = await supabaseFetch('deleted_items?select=*');
-  const mergedDeletedMap = new Map();
-  (remoteDeleted || []).forEach(r => {
-    if (r) {
-      mergedDeletedMap.set(r.id, {
-        tableName: r.table_name,
-        uuid: r.id,
-        id: r.item_id,
-        compositeKey: r.id,
-        deletedAt: r.deleted_at
-      });
-    }
-  });
-  const mergedDeletedList = Array.from(mergedDeletedMap.values());
-  localStorage.setItem('btrips_deleted_items', JSON.stringify(mergedDeletedList));
+  // ==========================================
+  // ФАЗА 2: ПОЛУЧЕНИЕ ЧИСТОГО ОБЛАЧНОГО СОСТОЯНИЯ (PULL CLEAN STATE)
+  // ==========================================
 
-  const isRecordDeleted = (tableName, record) => {
-    if (!record) return false;
-    const recId = record.id != null ? String(record.id) : '';
-    const recUuid = record.uuid ? String(record.uuid) : '';
-    return mergedDeletedList.some(d => {
-      if (d.tableName !== tableName) return false;
-      if (recId && (String(d.id) === recId || String(d.uuid) === recId || d.compositeKey === `${tableName}_${recId}`)) return true;
-      if (recUuid && (String(d.uuid) === recUuid || String(d.id) === recUuid)) return true;
-      return false;
-    });
-  };
-
-  // 3. Синхронизация TRIPS
+  // 1. TRIPS
   const remoteTrips = await supabaseFetch('trips?select=*');
   const localTrips = await db.trips.toArray();
 
-  // Принимаем ВСЕ актуальные поездки из Supabase в локальную базу
   for (const rt of (remoteTrips || [])) {
-    if (isRecordDeleted('trips', rt)) {
-      await db.trips.delete(rt.id);
-      continue;
-    }
     const tripObj = {
       id: rt.id,
       appNo: rt.app_no,
@@ -166,56 +189,16 @@ export async function syncWithSupabase(forceFullPull = false) {
     await db.trips.put(tripObj);
   }
 
-  // Удаляем локальные поездки, которых нет в облаке (если они удалены)
   for (const lt of localTrips) {
-    const existsInCloud = remoteTrips?.some(r => String(r.id) === String(lt.id));
-    if (!existsInCloud && !lt.uuid) {
-      await db.trips.delete(lt.id);
-    }
+    const exists = remoteTrips?.some(r => String(r.id) === String(lt.id));
+    if (!exists && !lt.uuid) await db.trips.delete(lt.id);
   }
 
-  // Отправляем ТОЛЬКО действительно более свежие локальные поездки в Supabase
-  const refreshedLocalTrips = await db.trips.toArray();
-  for (const lt of refreshedLocalTrips) {
-    if (isRecordDeleted('trips', lt)) {
-      continue;
-    }
-    const rt = remoteTrips?.find(r => String(r.id) === String(lt.id));
-    // Отправляем в облако ТОЛЬКО если записи нет в облаке ИЛИ локальная строго новее облачной
-    if (!rt || (new Date(lt.updatedAt || 0).getTime() > new Date(rt.updated_at || 0).getTime())) {
-      await supabaseFetch('trips', {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify({
-          id: lt.id,
-          app_no: lt.appNo || '',
-          client: lt.client || '',
-          location: lt.location || '',
-          work_type: lt.workType || '',
-          transport: lt.transport || '',
-          start_date: lt.startDate || '',
-          finish_date: lt.finishDate || '',
-          odo_start: lt.odoStart || 0,
-          odo_finish: lt.odoFinish || 0,
-          status: lt.status || 'не подготовлен',
-          per_diem_rate: lt.perDiemRate || 1100,
-          note: lt.note || '',
-          updated_at: lt.updatedAt || new Date().toISOString()
-        })
-      });
-    }
-  }
-
-  // 4. Синхронизация EXPENSES
+  // 2. EXPENSES
   const remoteExpenses = await supabaseFetch('expenses?select=*');
   const localExpenses = await db.expenses.toArray();
 
-  // Принимаем ВСЕ расходы из Supabase
   for (const re of (remoteExpenses || [])) {
-    if (isRecordDeleted('expenses', re)) {
-      await db.expenses.delete(re.id);
-      continue;
-    }
     const le = localExpenses.find(l => String(l.id) === String(re.id));
     const expObj = {
       id: re.id,
@@ -234,24 +217,16 @@ export async function syncWithSupabase(forceFullPull = false) {
     await db.expenses.put(expObj);
   }
 
-  // Удаляем локальные расходы, которых нет в облаке
   for (const le of localExpenses) {
     const exists = remoteExpenses?.some(r => String(r.id) === String(le.id));
-    if (!exists && !le.uuid) {
-      await db.expenses.delete(le.id);
-    }
+    if (!exists && !le.uuid) await db.expenses.delete(le.id);
   }
 
-  // 5. Синхронизация PAYMENTS
+  // 3. PAYMENTS
   const remotePayments = await supabaseFetch('payments?select=*');
   const localPayments = await db.payments.toArray();
 
-  // Принимаем ВСЕ выплаты из Supabase
   for (const rp of (remotePayments || [])) {
-    if (isRecordDeleted('payments', rp)) {
-      await db.payments.delete(rp.id);
-      continue;
-    }
     const payObj = {
       id: rp.id,
       tripId: rp.trip_id,
@@ -263,12 +238,9 @@ export async function syncWithSupabase(forceFullPull = false) {
     await db.payments.put(payObj);
   }
 
-  // Удаляем локальные выплаты, которых нет в облаке
   for (const lp of localPayments) {
     const exists = remotePayments?.some(r => String(r.id) === String(lp.id));
-    if (!exists && !lp.uuid) {
-      await db.payments.delete(lp.id);
-    }
+    if (!exists && !lp.uuid) await db.payments.delete(lp.id);
   }
 
   // 6. Синхронизация CLIENTS

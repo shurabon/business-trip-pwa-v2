@@ -2,12 +2,13 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('BusinessTripsDB');
 
-db.version(1).stores({
-  trips: '++id, appNo, client, location, workType, transport, startDate, finishDate, odoStart, odoFinish, status, perDiemRate, note, updatedAt',
-  expenses: '++id, tripId, date, amount, description, receiptBase64, receiptName, updatedAt',
-  payments: '++id, tripId, date, amount, purpose, note, updatedAt',
+db.version(2).stores({
+  trips: '++id, appNo, client, location, workType, transport, startDate, finishDate, odoStart, odoFinish, status, perDiemRate, note, updatedAt, isDeleted',
+  expenses: '++id, tripId, date, amount, description, receiptBase64, receiptName, updatedAt, isDeleted',
+  payments: '++id, tripId, date, amount, purpose, note, updatedAt, isDeleted',
   clients: '++id, &name, address, updatedAt',
-  dictionaries: '++id, category, value'
+  dictionaries: '++id, category, value',
+  syncQueue: '++id, entityType, entityId, action, payload, createdAt'
 });
 
 // Форматирование даты в ру-формат DD.MM.YYYY
@@ -139,6 +140,21 @@ export function calculateTripDays(startStr, finishStr) {
 // Первичная инициализация базовых справочников
 export function generateUUID() {
   return Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+}
+
+// Журнал регистрации транзакций (1C Outbox Pattern)
+export async function enqueueSyncChange(entityType, entityId, action, payload = {}) {
+  try {
+    await db.syncQueue.add({
+      entityType,
+      entityId: String(entityId),
+      action, // 'UPSERT' | 'DELETE'
+      payload,
+      createdAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.warn("Error enqueuing sync change:", err);
+  }
 }
 
 export function getDeletedItems() {
