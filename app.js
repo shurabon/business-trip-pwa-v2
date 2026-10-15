@@ -1,7 +1,7 @@
 import { db, seedInitialData, getFuelNormByDate, calculateTripDays, getAggregatedSummary, formatDateToRu, getTodayRuDate, parseRuDate, getFuelSettings, calculateCarMetrics, markItemDeleted, cleanupDuplicates, enqueueSyncChange } from './db.js';
 import { exportToExcel, exportToPDF, exportAO1Excel, exportReimbursementDocx, exportWaybillDocx } from './reports.js';
 import { exportLocalDbToJson, mergeRemoteDbToLocal, uploadToGithubGist, downloadAndMergeFromGithubGist } from './githubSync.js';
-import { syncWithSupabase, uploadReceiptToStorage } from './supabaseSync.js';
+import { syncWithSupabase, uploadReceiptToStorage, getServerTimeOffsetMs, fetchServerTimeOffset } from './supabaseSync.js';
 import { generateSecret, verifySync, generateURI } from 'otplib';
 import QRCode from 'qrcode';
 
@@ -12,6 +12,9 @@ let isSyncInProgress = false;
 let pending2FASecret = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
+  if (navigator.onLine) {
+    fetchServerTimeOffset().catch(() => {});
+  }
   check2FAAuthGate();
   update2FAStatusUI();
   updateNetworkStatus();
@@ -3057,6 +3060,9 @@ function showLockScreen() {
       setTimeout(() => input.focus(), 150);
     }
   }
+  if (navigator.onLine) {
+    fetchServerTimeOffset().catch(() => {});
+  }
 }
 
 function hideLockScreen() {
@@ -3068,7 +3074,7 @@ function hideLockScreen() {
   resetInactivityTimer();
 }
 
-function handleVerify2FALogin(event) {
+async function handleVerify2FALogin(event) {
   event.preventDefault();
   const input = document.getElementById('totpLoginInput');
   const rememberMe = document.getElementById('totpRememberMe')?.checked;
@@ -3086,8 +3092,24 @@ function handleVerify2FALogin(event) {
     return;
   }
 
-  // epochTolerance: 2 дает допуск ±60 секунд для компенсации расхождения времени между ПК и телефоном
-  const result = verifySync({ token, secret, epochTolerance: 2 });
+  // Обновляем сдвиг времени сервера при наличии сети
+  if (navigator.onLine) {
+    try {
+      await fetchServerTimeOffset();
+    } catch (_) {}
+  }
+
+  const offsetMs = getServerTimeOffsetMs();
+  const serverEpoch = Math.floor((Date.now() + offsetMs) / 1000);
+
+  // epochTolerance: 240 секунд (допуск расхождения времени до ±4 минут)
+  let result = verifySync({ token, secret, epoch: serverEpoch, epochTolerance: 240 });
+
+  // Если с серверным смещением не подошло, пробуем чисто локальное время с допуском 240 сек
+  if (!result?.valid && offsetMs !== 0) {
+    result = verifySync({ token, secret, epochTolerance: 240 });
+  }
+
   if (result && result.valid) {
     sessionStorage.setItem(TWO_FACTOR_ACTIVE_SESSION_KEY, 'true');
     if (rememberMe) {
@@ -3172,7 +3194,7 @@ function close2FASetupModal() {
   pending2FASecret = null;
 }
 
-function handleConfirm2FASetup(event) {
+async function handleConfirm2FASetup(event) {
   event.preventDefault();
   const input = document.getElementById('totpSetupVerifyInput');
   const token = (input?.value || '').trim();
@@ -3182,7 +3204,20 @@ function handleConfirm2FASetup(event) {
     return;
   }
 
-  const result = verifySync({ token, secret: pending2FASecret, epochTolerance: 2 });
+  if (navigator.onLine) {
+    try {
+      await fetchServerTimeOffset();
+    } catch (_) {}
+  }
+
+  const offsetMs = getServerTimeOffsetMs();
+  const serverEpoch = Math.floor((Date.now() + offsetMs) / 1000);
+
+  let result = verifySync({ token, secret: pending2FASecret, epoch: serverEpoch, epochTolerance: 240 });
+  if (!result?.valid && offsetMs !== 0) {
+    result = verifySync({ token, secret: pending2FASecret, epochTolerance: 240 });
+  }
+
   if (result && result.valid) {
     localStorage.setItem(TWO_FACTOR_KEY, pending2FASecret);
     sessionStorage.setItem(TWO_FACTOR_ACTIVE_SESSION_KEY, 'true');

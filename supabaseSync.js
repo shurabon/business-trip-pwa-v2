@@ -21,6 +21,16 @@ async function supabaseFetch(endpoint, options = {}) {
     }
   });
 
+  // Автоматический пересчет и сохранение сдвига системного времени по ответу сервера
+  const dateHeader = response.headers.get('date');
+  if (dateHeader) {
+    const serverTimeMs = new Date(dateHeader).getTime();
+    if (!isNaN(serverTimeMs)) {
+      const offsetMs = serverTimeMs - Date.now();
+      localStorage.setItem('supabase_server_time_offset', String(offsetMs));
+    }
+  }
+
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Supabase API error (${response.status}): ${errorText}`);
@@ -31,6 +41,36 @@ async function supabaseFetch(endpoint, options = {}) {
     return await response.json();
   }
   return null;
+}
+
+export function getServerTimeOffsetMs() {
+  const saved = localStorage.getItem('supabase_server_time_offset');
+  return saved ? parseInt(saved, 10) || 0 : 0;
+}
+
+export async function fetchServerTimeOffset() {
+  if (!navigator.onLine) return getServerTimeOffsetMs();
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/fuel_settings?select=id&limit=1`, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    const dateHeader = res.headers.get('date');
+    if (dateHeader) {
+      const serverTimeMs = new Date(dateHeader).getTime();
+      if (!isNaN(serverTimeMs)) {
+        const offsetMs = serverTimeMs - Date.now();
+        localStorage.setItem('supabase_server_time_offset', String(offsetMs));
+        return offsetMs;
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to fetch server time offset:", err);
+  }
+  return getServerTimeOffsetMs();
 }
 
 // Загрузка бинарного файла/Base64 в Supabase Storage
