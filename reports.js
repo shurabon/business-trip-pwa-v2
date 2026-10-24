@@ -86,7 +86,7 @@ export async function exportToExcel() {
 
 // 2. Экспорт 1-в-1 оригинальной формы АО-1 (по шаблону АО_Куротье.xls)
 export async function exportAO1Excel(tripId) {
-  const trip = await db.trips.get(parseInt(tripId));
+  const trip = await db.trips.get(String(tripId));
   if (!trip) throw new Error('Командировка не найдена');
 
   const summaryData = await getAggregatedSummary();
@@ -394,7 +394,7 @@ function getImageDimensions(dataUrl) {
 
 // 3. Генерация чистого PDF с фото-чеками (умная сетка 2x2: до 4 чеков на лист A4, сохранение пропорций)
 export async function exportToPDF(tripId) {
-  const trip = await db.trips.get(parseInt(tripId));
+  const trip = await db.trips.get(String(tripId));
   if (!trip) throw new Error('Командировка не найдена');
 
   const allExpenses = await db.expenses.toArray();
@@ -497,7 +497,7 @@ export async function exportToPDF(tripId) {
 
 // 4. Генерация Заявления на возмещение денежных средств в формате Word (.docx)
 export async function exportReimbursementDocx(tripId) {
-  const trip = await db.trips.get(parseInt(tripId));
+  const trip = await db.trips.get(String(tripId));
   if (!trip) throw new Error('Командировка не найдена');
 
   const allExpenses = await db.expenses.toArray();
@@ -749,7 +749,7 @@ export async function exportReimbursementDocx(tripId) {
 
 // 5. Генерация Путевого листа легкового автомобиля в формате Word (.docx, 1 страница, альбомный A4)
 export async function exportWaybillDocx(tripId) {
-  const trip = await db.trips.get(parseInt(tripId));
+  const trip = await db.trips.get(String(tripId));
   if (!trip) throw new Error('Командировка не найдена');
 
   const carMetrics = calculateCarMetrics(trip);
@@ -796,7 +796,7 @@ export async function exportWaybillDocx(tripId) {
 
   // Случайный правдоподобный остаток в баке (от 20 до 40 с шагом 5 л, стабилен для одной поездки)
   const tankOptions = [20, 25, 30, 35, 40];
-  const tripSeed = (parseInt(trip.id) || 1) + (trip.appNo ? trip.appNo.length : 0);
+  const tripSeed = (trip.id ? trip.id.charCodeAt(0) : 1) + (trip.appNo ? trip.appNo.length : 0);
   const tankFuel = String(tankOptions[tripSeed % tankOptions.length]);
 
   // Таблица 1: Спидометр и Топливо

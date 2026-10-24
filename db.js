@@ -1,12 +1,12 @@
 import Dexie from 'dexie';
 
-export const db = new Dexie('BusinessTripsDB');
+export const db = new Dexie('BusinessTrips_PB');
 
-db.version(2).stores({
-  trips: '++id, appNo, client, location, workType, transport, startDate, finishDate, odoStart, odoFinish, status, perDiemRate, note, updatedAt, isDeleted',
-  expenses: '++id, tripId, date, amount, description, receiptBase64, receiptName, updatedAt, isDeleted',
-  payments: '++id, tripId, date, amount, purpose, note, updatedAt, isDeleted',
-  clients: '++id, &name, address, updatedAt',
+db.version(1).stores({
+  trips: 'id, appNo, client, location, workType, transport, startDate, finishDate, odoStart, odoFinish, status, perDiemRate, note, updatedAt, isDeleted',
+  expenses: 'id, tripId, date, amount, description, receipt, receiptUrl, paymentType, updatedAt, isDeleted',
+  payments: 'id, tripId, date, amount, note, updatedAt, isDeleted',
+  clients: 'id, &name, address, updatedAt',
   dictionaries: '++id, category, value',
   syncQueue: '++id, entityType, entityId, action, payload, createdAt'
 });
@@ -319,8 +319,6 @@ export async function getAggregatedSummary() {
     let effectiveStatus = t.status || 'не подготовлен';
     if (paymentsTotal >= totalOwed && totalOwed > 0) {
       effectiveStatus = 'Выплачен';
-    } else if (effectiveStatus === 'Выплачен' && paymentsTotal < totalOwed) {
-      effectiveStatus = 'Подготовлен';
     }
 
     t.status = effectiveStatus;
