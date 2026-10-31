@@ -1,0 +1,88 @@
+{
+  "id": "ru.danilovhome.businesstrips",
+  "name": "Учет Командировок PWA",
+  "short_name": "Командировки",
+  "description": "Offline-First приложение для учета командировок, одометра, чеков и выплат",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8F9FE",
+  "theme_color": "#1055CC",
+  "categories": [
+    "business",
+    "productivity",
+    "finance"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Учет командировок на смартфоне"
+    },
+    {
+      "src": "screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Панель управления командировками"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Новая командировка",
+      "short_name": "Поездка",
+      "description": "Быстро создать новую командировку",
+      "url": "./#new-trip",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Добавить расход",
+      "short_name": "Чек",
+      "description": "Внести чек расхода",
+      "url": "./#new-expense",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
