@@ -254,10 +254,11 @@ export async function triggerYandexGoScan() {
     }
 
     scannedRidesCache = data.items || [];
-    await renderYandexGoRidesList(scannedRidesCache);
+    const folders = data.foldersScanned || ['INBOX'];
+    await renderYandexGoRidesList(scannedRidesCache, folders);
 
     if (scannedRidesCache.length > 0) {
-      showToast(`Найдено поездок Яндекс Go: ${scannedRidesCache.length}`, 3000);
+      showToast(`Найдено поездок: ${scannedRidesCache.length} (папки: ${folders.join(', ')})`, 3500);
     }
   } catch (err) {
     if (container) {
@@ -276,17 +277,20 @@ export async function triggerYandexGoScan() {
 /**
  * Отрисовка карточек найденных поездок с выпадающим списком командировок
  */
-export async function renderYandexGoRidesList(rides) {
+export async function renderYandexGoRidesList(rides, foldersScanned = []) {
   const container = document.getElementById('ygoScanContainer');
   if (!container) return;
 
+  const folderNamesStr = foldersScanned.length > 0 ? foldersScanned.join(', ') : 'Входящие, Чеки';
+
   if (!rides || rides.length === 0) {
     container.innerHTML = `
-      <div style="text-align:center; padding:36px 16px; color:#64748B;">
+      <div style="text-align:center; padding:32px 16px; color:#64748B;">
         <span class="material-symbols-outlined" style="font-size:44px; color:#CBD5E1; margin-bottom:8px;">receipt_long</span>
         <strong style="font-size:15px; color:#334155; display:block; margin-bottom:6px;">Поездок не обнаружено</strong>
-        <p style="font-size:12.5px; margin:0 0 12px;">За выбранный период писем от Яндекс Go не найдено.</p>
-        <button class="btn btn-sm btn-secondary" onclick="triggerYandexGoScan()">Повторить сканирование</button>
+        <p style="font-size:12.5px; margin:0 0 6px;">За выбранный период писем от Яндекс Go не найдено.</p>
+        <small style="display:block; color:#94A3B8; margin-bottom:14px; font-size:11.5px;">Проверены папки: <strong>${folderNamesStr}</strong></small>
+        <button class="btn btn-sm btn-secondary" onclick="triggerYandexGoScan()">🔄 Повторить сканирование</button>
       </div>
     `;
     return;
@@ -297,7 +301,13 @@ export async function renderYandexGoRidesList(rides) {
   const trips = allTrips.filter(t => !t.isDeleted && !t.deleted);
   const existingExpenses = await db.expenses.toArray();
 
-  let html = `<div style="display:flex; flex-direction:column; gap:10px; margin-top:4px;">`;
+  let html = `
+    <div style="font-size:11.5px; color:#64748B; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; padding:0 4px;">
+      <span>Найдено поездок: <strong>${rides.length}</strong></span>
+      <span>Папки: <strong>${folderNamesStr}</strong></span>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:2px;">
+  `;
 
   rides.forEach((ride, idx) => {
     // Проверяем, добавлен ли уже этот расход в базу
