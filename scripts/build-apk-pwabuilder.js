@@ -15,8 +15,8 @@ async function main() {
   console.log(`✅ Манифест загружен: "${manifest.name}" (id: ${manifest.id})`);
 
   const packageOptions = {
-    appVersion: '1.0.0.0',
-    appVersionCode: 1,
+    appVersion: '1.0.1.0',
+    appVersionCode: 2,
     backgroundColor: manifest.background_color || '#F8F9FE',
     display: manifest.display || 'standalone',
     enableNotifications: false,

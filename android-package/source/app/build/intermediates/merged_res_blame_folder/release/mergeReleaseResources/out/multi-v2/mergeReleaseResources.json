@@ -2822,6 +2822,25 @@
                     }
                 },
                 {
+                    "source": "/tmp/pwabuilder-cloudapk--1-pJItwEo5NVn4/app/src/main/res/values/strings.xml",
+                    "from": {
+                        "startLines": "31",
+                        "startColumns": "2",
+                        "startOffsets": "1145",
+                        "endLines": "40",
+                        "endColumns": "11",
+                        "endOffsets": "1410"
+                    },
+                    "to": {
+                        "startLines": "318",
+                        "startColumns": "4",
+                        "startOffsets": "20551",
+                        "endLines": "327",
+                        "endColumns": "11",
+                        "endOffsets": "20816"
+                    }
+                },
+                {
                     "source": "/root/.gradle/caches/8.11.1/transforms/48bafeae36779f423d74bd8112b18853/transformed/fragment-1.5.4/res/values/values.xml",
                     "from": {
                         "startLines": "2,3,4,5,10",
@@ -2841,7 +2860,24 @@
                     }
                 },
                 {
-                    "source": "/tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/build/generated/res/resValues/release/values/gradleResValues.xml",
+                    "source": "/tmp/pwabuilder-cloudapk--1-pJItwEo5NVn4/app/src/main/res/values/colors.xml",
+                    "from": {
+                        "startLines": "16",
+                        "startColumns": "4",
+                        "startOffsets": "647",
+                        "endColumns": "53",
+                        "endOffsets": "696"
+                    },
+                    "to": {
+                        "startLines": "83",
+                        "startColumns": "4",
+                        "startOffsets": "5432",
+                        "endColumns": "53",
+                        "endOffsets": "5481"
+                    }
+                },
+                {
+                    "source": "/tmp/pwabuilder-cloudapk--1-pJItwEo5NVn4/app/build/generated/res/resValues/release/values/gradleResValues.xml",
                     "from": {
                         "startLines": "6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44",
                         "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
@@ -2872,42 +2908,6 @@
                         "startOffsets": "17920",
                         "endColumns": "53",
                         "endOffsets": "17969"
-                    }
-                },
-                {
-                    "source": "/tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/src/main/res/values/strings.xml",
-                    "from": {
-                        "startLines": "31",
-                        "startColumns": "2",
-                        "startOffsets": "1145",
-                        "endLines": "40",
-                        "endColumns": "11",
-                        "endOffsets": "1410"
-                    },
-                    "to": {
-                        "startLines": "318",
-                        "startColumns": "4",
-                        "startOffsets": "20551",
-                        "endLines": "327",
-                        "endColumns": "11",
-                        "endOffsets": "20816"
-                    }
-                },
-                {
-                    "source": "/tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/src/main/res/values/colors.xml",
-                    "from": {
-                        "startLines": "16",
-                        "startColumns": "4",
-                        "startOffsets": "647",
-                        "endColumns": "53",
-                        "endOffsets": "696"
-                    },
-                    "to": {
-                        "startLines": "83",
-                        "startColumns": "4",
-                        "startOffsets": "5432",
-                        "endColumns": "53",
-                        "endOffsets": "5481"
                     }
                 },
                 {
