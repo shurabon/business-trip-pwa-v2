@@ -130,6 +130,18 @@ import {
   downloadPDFReport
 } from './modules/ui-reports.js';
 
+// 8. Модуль сканирования почты и чеков Яндекс Go
+import {
+  loadMailruSettings,
+  saveMailruSettings,
+  toggleMailPasswordVisibility,
+  testMailruConnection,
+  openYandexGoModal,
+  closeYandexGoModal,
+  triggerYandexGoScan,
+  addYandexGoRideToExpense
+} from './modules/ui-mail-scanner.js';
+
 // ====================================================================
 // УПРАВЛЕНИЕ SPEED DIAL (КНОПКА БЫСТРЫХ ДЕЙСТВИЙ НА МОБИЛЬНЫХ)
 // ====================================================================
@@ -394,6 +406,16 @@ export function exportHandlersToWindow() {
   window.generateSelectedReport = generateSelectedReport;
   window.downloadExcelReport = downloadExcelReport;
   window.downloadPDFReport = downloadPDFReport;
+
+  // Сканирование почты и поездки Яндекс Go
+  window.loadMailruSettings = loadMailruSettings;
+  window.saveMailruSettings = saveMailruSettings;
+  window.toggleMailPasswordVisibility = toggleMailPasswordVisibility;
+  window.testMailruConnection = testMailruConnection;
+  window.openYandexGoModal = openYandexGoModal;
+  window.closeYandexGoModal = closeYandexGoModal;
+  window.triggerYandexGoScan = triggerYandexGoScan;
+  window.addYandexGoRideToExpense = addYandexGoRideToExpense;
 }
 
 // Экспортируем обработчики сразу при парсинге скрипта
@@ -414,6 +436,7 @@ document.addEventListener('keydown', (e) => {
     closeQuickPaymentModal();
     closeCreateTripModal();
     closeEditBottomSheet();
+    closeYandexGoModal();
     if (speedDialOpen) toggleSpeedDial();
   }
 });
@@ -453,6 +476,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     check2FAAuthGate();
     update2FAStatusUI();
+    loadMailruSettings();
     updateNetworkStatus();
     setupServiceWorker();
   } catch (err) {
