@@ -26,7 +26,7 @@
     <string name="fullScopeUrl" translatable="false">https://app.danilovhome.keenetic.pro/</string>
     <string name="generatorApp" translatable="false">PWABuilder</string>
     <string name="hostName" translatable="false">app.danilovhome.keenetic.pro</string>
-    <string name="launchUrl" translatable="false">https://app.danilovhome.keenetic.prohttps://app.danilovhome.keenetic.pro/</string>
+    <string name="launchUrl" translatable="false">https://app.danilovhome.keenetic.pro/</string>
     <string name="launcherName" translatable="false">Командировки</string>
     <string name="orientation" translatable="false">default</string>
     <string name="providerAuthority" translatable="false">ru.danilovhome.businesstrips.fileprovider</string>

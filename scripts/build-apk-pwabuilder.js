@@ -59,7 +59,7 @@ async function main() {
       storePassword: 'businesstrips2026'
     },
     splashScreenFadeOutDuration: 300,
-    startUrl: new URL(manifest.start_url || '/', SITE_URL).toString(),
+    startUrl: '/',
     themeColor: manifest.theme_color || '#1055CC',
     themeColorDark: '#000000',
     webManifestUrl: MANIFEST_URL,

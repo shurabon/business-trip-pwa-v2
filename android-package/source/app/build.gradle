@@ -24,7 +24,7 @@ plugins {
 def twaManifest = [
     applicationId: 'ru.danilovhome.businesstrips',
     hostName: 'app.danilovhome.keenetic.pro', // The domain being opened in the TWA.
-    launchUrl: 'https://app.danilovhome.keenetic.pro/', // The start path for the TWA. Must be relative to the domain.
+    launchUrl: '/', // The start path for the TWA. Must be relative to the domain.
     name: 'Учет Командировок PWA', // The application name.
     launcherName: 'Командировки', // The name shown on the Android Launcher.
     themeColor: '#1055CC', // The color used for the status bar.

@@ -19,10 +19,10 @@ ru.danilovhome.businesstrips.app-core-1.13.0-17 /root/.gradle/caches/8.11.1/tran
 ru.danilovhome.businesstrips.app-profileinstaller-1.3.1-18 /root/.gradle/caches/8.11.1/transforms/bb4a0d32d1b17a1dcea0cf71d2bde5e0/transformed/profileinstaller-1.3.1/res
 ru.danilovhome.businesstrips.app-browser-1.9.0-alpha04-19 /root/.gradle/caches/8.11.1/transforms/be57bd43967b699c12a0f6b8bd2f21c6/transformed/browser-1.9.0-alpha04/res
 ru.danilovhome.businesstrips.app-appcompat-resources-1.7.0-20 /root/.gradle/caches/8.11.1/transforms/d6f2e3c3aeb152384c7f6efcc9d99697/transformed/appcompat-resources-1.7.0/res
-ru.danilovhome.businesstrips.app-pngs-21 /tmp/pwabuilder-cloudapk--1-2klMc08BGZPu/app/build/generated/res/pngs/release
-ru.danilovhome.businesstrips.app-resValues-22 /tmp/pwabuilder-cloudapk--1-2klMc08BGZPu/app/build/generated/res/resValues/release
-ru.danilovhome.businesstrips.app-packageReleaseResources-23 /tmp/pwabuilder-cloudapk--1-2klMc08BGZPu/app/build/intermediates/incremental/release/packageReleaseResources/merged.dir
-ru.danilovhome.businesstrips.app-packageReleaseResources-24 /tmp/pwabuilder-cloudapk--1-2klMc08BGZPu/app/build/intermediates/incremental/release/packageReleaseResources/stripped.dir
-ru.danilovhome.businesstrips.app-release-25 /tmp/pwabuilder-cloudapk--1-2klMc08BGZPu/app/build/intermediates/merged_res/release/mergeReleaseResources
-ru.danilovhome.businesstrips.app-main-26 /tmp/pwabuilder-cloudapk--1-2klMc08BGZPu/app/src/main/res
-ru.danilovhome.businesstrips.app-release-27 /tmp/pwabuilder-cloudapk--1-2klMc08BGZPu/app/src/release/res
+ru.danilovhome.businesstrips.app-pngs-21 /tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/build/generated/res/pngs/release
+ru.danilovhome.businesstrips.app-resValues-22 /tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/build/generated/res/resValues/release
+ru.danilovhome.businesstrips.app-packageReleaseResources-23 /tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/build/intermediates/incremental/release/packageReleaseResources/merged.dir
+ru.danilovhome.businesstrips.app-packageReleaseResources-24 /tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/build/intermediates/incremental/release/packageReleaseResources/stripped.dir
+ru.danilovhome.businesstrips.app-release-25 /tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/build/intermediates/merged_res/release/mergeReleaseResources
+ru.danilovhome.businesstrips.app-main-26 /tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/src/main/res
+ru.danilovhome.businesstrips.app-release-27 /tmp/pwabuilder-cloudapk--1-RI4rlEP4jKG0/app/src/release/res

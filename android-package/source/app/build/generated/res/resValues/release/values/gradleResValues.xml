@@ -34,7 +34,7 @@
     <!-- Value from default config. -->
     <string name="hostName" translatable="false">app.danilovhome.keenetic.pro</string>
     <!-- Value from default config. -->
-    <string name="launchUrl" translatable="false">https://app.danilovhome.keenetic.prohttps://app.danilovhome.keenetic.pro/</string>
+    <string name="launchUrl" translatable="false">https://app.danilovhome.keenetic.pro/</string>
     <!-- Value from default config. -->
     <string name="launcherName" translatable="false">Командировки</string>
     <!-- Value from default config. -->
