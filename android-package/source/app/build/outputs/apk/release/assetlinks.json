@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "ru.danilovhome.businesstrips",
+        "sha256_cert_fingerprints": ["DC:F2:BB:83:A0:44:45:6E:E1:51:D6:FB:9E:63:96:5B:03:8E:B6:AC:C6:3B:AE:5A:41:48:7B:FA:27:C1:44:20"]
+      }
+    }]

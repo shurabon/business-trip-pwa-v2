@@ -1,0 +1,10 @@
+Keep this file and signing.keystore in a safe place. You'll need these files if you want to upload future versions of your PWA to the Google Play Store.
+
+Key store file: signing.keystore
+Key store password: x0Aa4zhVSdiV
+Key alias: businesstrips
+Key password: x0Aa4zhVSdiV
+Signer's full name: Shura Danilov
+Signer's organization: Danilov Home
+Signer's organizational unit: Engineering
+Signer's country code: RU
