@@ -11,6 +11,16 @@ db.version(1).stores({
   syncQueue: '++id, entityType, entityId, action, payload, createdAt'
 });
 
+db.version(2).stores({
+  trips: 'id, appNo, client, location, workType, transport, startDate, finishDate, odoStart, odoFinish, status, perDiemRate, note, updatedAt, isDeleted',
+  expenses: 'id, tripId, date, amount, description, receipt, receiptUrl, paymentType, fromAddress, toAddress, route, rideTime, taxiRideId, updatedAt, isDeleted',
+  payments: 'id, tripId, date, amount, note, updatedAt, isDeleted',
+  clients: 'id, &name, address, updatedAt',
+  dictionaries: '++id, category, value',
+  syncQueue: '++id, entityType, entityId, action, payload, createdAt',
+  taxi_rides: 'id, tripId, messageId, date, time, fromAddress, toAddress, route, amount, paymentType, isCorporate, status, expenseId, updatedAt, isDeleted'
+});
+
 // Форматирование даты в ру-формат DD.MM.YYYY
 export function formatDateToRu(val) {
   if (!val) return '';

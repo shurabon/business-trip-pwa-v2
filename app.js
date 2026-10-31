@@ -139,7 +139,11 @@ import {
   openYandexGoModal,
   closeYandexGoModal,
   triggerYandexGoScan,
-  addYandexGoRideToExpense
+  setTaxiFilterTab,
+  renderYandexGoRidesFromDb,
+  handleLinkTaxiRide,
+  handleUnlinkTaxiRide,
+  handleToggleIgnoreTaxi
 } from './modules/ui-mail-scanner.js';
 
 // ====================================================================
@@ -415,7 +419,11 @@ export function exportHandlersToWindow() {
   window.openYandexGoModal = openYandexGoModal;
   window.closeYandexGoModal = closeYandexGoModal;
   window.triggerYandexGoScan = triggerYandexGoScan;
-  window.addYandexGoRideToExpense = addYandexGoRideToExpense;
+  window.setTaxiFilterTab = setTaxiFilterTab;
+  window.renderYandexGoRidesFromDb = renderYandexGoRidesFromDb;
+  window.handleLinkTaxiRide = handleLinkTaxiRide;
+  window.handleUnlinkTaxiRide = handleUnlinkTaxiRide;
+  window.handleToggleIgnoreTaxi = handleToggleIgnoreTaxi;
 }
 
 // Экспортируем обработчики сразу при парсинге скрипта

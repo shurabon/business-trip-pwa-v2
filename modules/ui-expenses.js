@@ -581,8 +581,11 @@ export async function renderExpensesList() {
     const tripName = trip ? `№${trip.appNo || trip.id} ${trip.client || ''}` : 'Командировка';
 
     let icon = 'receipt_long';
-    let fileBadge = '';
+    if (exp.category === 'Транспорт' || exp.fromAddress || exp.taxiRideId) {
+      icon = 'local_taxi';
+    }
 
+    let fileBadge = '';
     const receiptSrc = exp.receiptUrl || (exp.receiptBase64 ? `data:image/jpeg;base64,${exp.receiptBase64}` : '');
     const isPdf = isPdfFile(exp);
 
@@ -596,6 +599,18 @@ export async function renderExpensesList() {
       }
     }
 
+    let routeInfo = '';
+    if (exp.fromAddress && exp.toAddress) {
+      routeInfo = `<div style="font-size:12px; color:#B45309; font-weight:600; margin-top:2px;">📍 ${exp.fromAddress} → ${exp.toAddress}${exp.rideTime ? ` (${exp.rideTime})` : ''}</div>`;
+    } else if (exp.route) {
+      routeInfo = `<div style="font-size:12px; color:#B45309; font-weight:600; margin-top:2px;">📍 ${exp.route}${exp.rideTime ? ` (${exp.rideTime})` : ''}</div>`;
+    }
+
+    let paymentBadge = '';
+    if (exp.paymentType === 'cashless') {
+      paymentBadge = ` <span class="badge" style="background:#EEF2FF; color:#3730A3; font-size:10px; padding:2px 6px;">💳 Безнал</span>`;
+    }
+
     html += `
       <div id="global-expense-card-${exp.id}" class="card" style="margin-bottom:10px; padding:14px; cursor:pointer; background:#FFFFFF; border:none; box-shadow:0 3px 14px rgba(0,0,0,0.05);" onclick="editExpenseItem('${exp.id}', '${exp.tripId || ''}')">
         <div id="global-expense-view-${exp.id}">
@@ -603,7 +618,8 @@ export async function renderExpensesList() {
             <div style="display:flex; align-items:center; gap:10px;">
               <span class="material-symbols-outlined" style="color:var(--md-sys-color-primary); font-size:22px;">${icon}</span>
               <div>
-                <strong style="font-size:14px; color:#1A1C1E;">${exp.amount.toLocaleString('ru-RU')} руб.</strong>${fileBadge}<br>
+                <strong style="font-size:14px; color:#1A1C1E;">${exp.amount.toLocaleString('ru-RU')} руб.</strong>${fileBadge}${paymentBadge}<br>
+                ${routeInfo}
                 <span style="color:#333; font-weight:500;">${exp.description || 'Без описания'}</span><br>
                 <span style="color:#777; font-size:11px;">📅 ${exp.date} | 📍 ${tripName}</span>
               </div>

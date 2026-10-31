@@ -111,7 +111,7 @@ export async function deployToGitHub(token) {
     tree: masterTreeItems
   });
 
-  const commitMsg = 'feat: модульная архитектура app.js (modules/), Soft Delete и синхронизация с PocketBase';
+  const commitMsg = process.argv[3] || 'feat: сохранение поездок Яндекс Go в базу taxi_rides, маршрут (откуда-куда) в расходах и АО-1';
   const newMasterCommit = await ghRequest('/git/commits', 'POST', token, {
     message: commitMsg,
     tree: newMasterTree.sha,
@@ -159,7 +159,7 @@ export async function deployToGitHub(token) {
   });
 
   const newGhPagesCommit = await ghRequest('/git/commits', 'POST', token, {
-    message: 'Deploy: модульная декомпозиция и PocketBase интеграция',
+    message: process.argv[3] || 'Deploy: сохранение поездок Яндекс Go в базу taxi_rides, маршрут (откуда-куда) в расходах и АО-1',
     tree: newGhPagesTree.sha,
     parents: ghPagesCommitSha ? [ghPagesCommitSha] : []
   });

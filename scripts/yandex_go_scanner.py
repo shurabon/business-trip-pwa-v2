@@ -4,16 +4,13 @@
 """
 ====================================================================
 Скрипт: yandex_go_scanner.py
-Назначение: Подключение к почтовому ящику (Mail.ru / Yandex / etc) по IMAP,
-поиск и парсинг писем о поездках Яндекс Go (Яндекс.Такси).
-Поддерживает поиск как в папке INBOX, так и в специальных папках
-(например, «Чеки», «Заказы», «Такси»), в том числе закодированных
-в стандарте IMAP Modified UTF-7.
-Извлечение:
- - Дата и точное время поездки
- - Маршрут («Откуда → Куда»)
- - Стоимость поездки (рубли)
- - Уникальный ID для дедупликации
+Назначение: Универсальный двуязычный (Русский + Английский) парсер
+писем о поездках Яндекс Go (Яндекс.Такси) из почты Mail.ru / Yandex.
+- Автоматический поиск по папкам: INBOX, «Чеки», «Заказы», «Такси» (IMAP UTF-7)
+- Извлечение цены (русский и английский форматы: ₽717.36 / 717.36 ₽)
+- Автоопределение способа оплаты: Corporate account / Корпоративный -> Безнал (cashless)
+- Парсинг маршрута («Откуда → Куда») и точного времени отправления
+- Разбор дат (русские и английские названия месяцев)
 ====================================================================
 """
 
@@ -29,10 +26,20 @@ import re
 import html
 import binascii
 
-RU_MONTHS = {
+ALL_MONTHS = {
+    # Английские месяцы
+    'january': 1, 'february': 2, 'march': 3, 'april': 4,
+    'may': 5, 'june': 6, 'july': 7, 'august': 8,
+    'september': 9, 'october': 10, 'november': 11, 'december': 12,
+    'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4,
+    'jun': 6, 'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+    # Русские месяцы
     'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
     'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8,
     'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12,
+    'январь': 1, 'февраль': 2, 'март': 3, 'апрель': 4,
+    'май': 5, 'июнь': 6, 'июль': 7, 'август': 8,
+    'сентябрь': 9, 'октябрь': 10, 'ноябрь': 11, 'декабрь': 12,
     'янв': 1, 'фев': 2, 'мар': 3, 'апр': 4,
     'май': 5, 'июн': 6, 'июл': 7, 'авг': 8,
     'сен': 9, 'окт': 10, 'ноя': 11, 'дек': 12
@@ -79,7 +86,6 @@ def parse_imap_folder_line(line):
     flags = ""
     folder_name = ""
     
-    # Регулярка для разбора строки IMAP LIST: (\Flags) "delim" "folder_name" или (\Flags) NIL folder_name
     m = re.search(r'\((?P<flags>.*?)\)\s+(?:"(?P<delim>.*?)"|NIL)\s+(?:"(?P<qname>.*)"|(?P<uname>.*))', line)
     if m:
         flags = m.group('flags') or ""
@@ -175,63 +181,129 @@ def parse_yandex_go_email(msg_id, msg, raw_email_date, folder_name=""):
     plain_from_html = strip_tags(html_body) if html_body else ""
     full_text = (text_body + "\n" + plain_from_html).replace('\xa0', ' ').replace('\u202f', ' ')
 
-    # 1. Поиск суммы
+    # ====================================================================
+    # 1. СУММА (PRICE) - Двуязычный поиск (₽ впереди и ₽ сзади)
+    # ====================================================================
     amount = 0.0
-    amount_match = re.search(r'(?:Итого|Стоимость поездки|Всего|Сумма|Оплачено|ИТОГ[О]?|К оплате)[^\d]{0,30}(\d+[\s]*[\d]*(?:[.,]\d{1,2})?)\s*(?:₽|руб|р\b)', full_text, re.IGNORECASE)
-    if not amount_match:
-        amount_match = re.search(r'ИТОГ[О]?\s*[:=]\s*(\d+(?:[.,]\d{1,2})?)', full_text, re.IGNORECASE)
-    if not amount_match:
-        amount_match = re.search(r'(\d+[\s]*[\d]*(?:[.,]\d{2})?)\s*(?:₽|руб\.?)', full_text, re.IGNORECASE)
 
-    if amount_match:
-        raw_amt = amount_match.group(1).replace(' ', '').replace(',', '.')
+    # Шаг 1.1: Поиск по ключевым словам Total price / Ride price / Итого / Стоимость
+    # Поддерживает знак рубля как перед числом (₽717.36), так и после (717.36 ₽)
+    m = re.search(
+        r'(?:Total\s*price|Ride\s*price|Итого|Стоимость поездки|Стоимость|Всего|Сумма|ИТОГ[О]?|К оплате)'
+        r'[^\d\r\n]{0,35}'
+        r'(\d+(?:[\s\xa0\u202f]*\d+)*(?:[.,]\d{1,2})?)',
+        full_text,
+        re.IGNORECASE
+    )
+    if m:
+        raw_amt = m.group(1).replace(' ', '').replace(',', '.')
         try:
-            amount = round(float(raw_amt), 2)
+            val = round(float(raw_amt), 2)
+            if val > 0:
+                amount = val
         except ValueError:
-            amount = 0.0
+            pass
 
-    # 2. Поиск даты и точного времени в теле письма
-    body_time_match = re.search(r'(\d{1,2})\s+([а-яА-ЯёЁ]+)(?:\s+(\d{4}))?[,\s]+(?:в\s*)?(\d{1,2}:\d{2})', full_text)
-    if body_time_match:
-        day = int(body_time_match.group(1))
-        month_name = body_time_match.group(2).lower()
-        year = int(body_time_match.group(3)) if body_time_match.group(3) else dt.year
-        t_str = body_time_match.group(4)
-        if month_name in RU_MONTHS:
-            month = RU_MONTHS[month_name]
+    # Шаг 1.2: Если не нашли по ключевому слову, ищем знак рубля перед числом (₽717.36)
+    if amount == 0.0:
+        m2 = re.search(r'[₽$€]\s*(\d+(?:[\s\xa0\u202f]*\d+)*(?:[.,]\d{1,2})?)', full_text)
+        if m2:
+            raw_amt = m2.group(1).replace(' ', '').replace(',', '.')
             try:
-                ride_dt = datetime.datetime(year, month, day)
-                date_str = ride_dt.strftime("%d.%m.%Y")
-                time_str = t_str
-            except Exception:
+                val = round(float(raw_amt), 2)
+                if val > 0:
+                    amount = val
+            except ValueError:
                 pass
-    else:
-        num_time_match = re.search(r'(\d{2}\.\d{2}\.\d{4})[,\s]+(?:в\s*)?(\d{1,2}:\d{2})', full_text)
-        if num_time_match:
-            date_str = num_time_match.group(1)
-            time_str = num_time_match.group(2)
 
-    # 3. Поиск маршрута («Откуда — Куда»)
+    # Шаг 1.3: Поиск знака рубля после числа (717.36 ₽ / 717 руб)
+    if amount == 0.0:
+        m3 = re.search(r'(\d+(?:[\s\xa0\u202f]*\d+)*(?:[.,]\d{1,2})?)\s*(?:[₽$€]|руб\.?)', full_text, re.IGNORECASE)
+        if m3:
+            raw_amt = m3.group(1).replace(' ', '').replace(',', '.')
+            try:
+                val = round(float(raw_amt), 2)
+                if val > 0:
+                    amount = val
+            except ValueError:
+                pass
+
+    # Шаг 1.4: Поиск по фискальному формату ОФД (ИТОГ: =717.36)
+    if amount == 0.0:
+        m4 = re.search(r'ИТОГ[О]?\s*[:=]\s*=?\s*(\d+(?:[.,]\d{1,2})?)', full_text, re.IGNORECASE)
+        if m4:
+            try:
+                amount = round(float(m4.group(1).replace(',', '.')), 2)
+            except ValueError:
+                pass
+
+    # ====================================================================
+    # 2. СПОСОБ ОПЛАТЫ (PAYMENT METHOD)
+    # Если Corporate account / Корпоративный -> БЕЗНАЛ (cashless)
+    # ====================================================================
+    is_cashless = False
+    payment_method_raw = ""
+
+    pm_match = re.search(r'(?:Payment\s*method|Способ\s*оплаты)\s*[:—\-]?\s*([^\n\r\t|]+)', full_text, re.IGNORECASE)
+    if pm_match:
+        payment_method_raw = pm_match.group(1).strip()
+
+    # Проверяем как выделенный блок, так и весь текст письма на признаки корпоративного аккаунта
+    check_text = (payment_method_raw + " " + full_text).lower()
+    corporate_keywords = [
+        'corporate account', 'corporate', 'business account', 'company account',
+        'корпоративный аккаунт', 'корпоративный счет', 'корпоративный',
+        'оплата компанией', 'безнал', 'безналичный'
+    ]
+    if any(kw in check_text for kw in corporate_keywords):
+        is_cashless = True
+
+    payment_type = "cashless" if is_cashless else "cash"
+    payment_label = "Безналичный расчет (Корпоративный аккаунт)" if is_cashless else "Личные средства"
+
+    # ====================================================================
+    # 3. МАРШРУТ («ОТКУДА → КУДА») И ВРЕМЯ О ТПРАВЛЕНИЯ
+    # ====================================================================
     from_addr = ""
     to_addr = ""
 
-    from_m = re.search(r'(?:Откуда|Точка А|Посадка|Начало поездки)\s*[:—\-]\s*([^\n|]+)', full_text, re.IGNORECASE)
-    to_m = re.search(r'(?:Куда|Точка Б|Высадка|Конец поездки)\s*[:—\-]\s*([^\n|]+)', full_text, re.IGNORECASE)
+    # Шаг 3.1: Структурированный блок Route / Маршрут
+    route_block_match = re.search(r'(?:Route|Маршрут)(.+?)(?:Payment|Оплата|Details|Детали)', full_text, re.DOTALL | re.IGNORECASE)
+    if route_block_match:
+        block_text = route_block_match.group(1)
+        block_lines = [l.strip() for l in block_text.split('\n') if l.strip()]
+        
+        times_found = []
+        addrs_found = []
+        for l in block_lines:
+            # Время (например 21:10)
+            t_m = re.match(r'^(\d{1,2}:\d{2})$', l)
+            if t_m:
+                times_found.append(t_m.group(1))
+            elif len(l) > 3 and not re.match(r'^[•\-\*\t|\s]+$', l):
+                # Исключаем служебные заголовки
+                if not any(skip in l.lower() for skip in ['route', 'маршрут', 'payment', 'оплата']):
+                    addrs_found.append(l)
 
-    if from_m:
-        from_addr = from_m.group(1).strip()
-    if to_m:
-        to_addr = to_m.group(1).strip()
+        if len(addrs_found) >= 2:
+            from_addr = addrs_found[0]
+            to_addr = addrs_found[1]
+        elif len(addrs_found) == 1:
+            from_addr = addrs_found[0]
 
+        if times_found:
+            time_str = times_found[0]
+
+    # Шаг 3.2: Если не нашли по блоку Route, проверяем классические метки Откуда/Куда
     if not from_addr or not to_addr:
-        ab_match = re.search(r'(?:^|\n)\s*[AА]\s+([^\n]+)\s*\n\s*[BБ]\s+([^\n]+)', full_text)
-        if ab_match:
-            if not from_addr: from_addr = ab_match.group(1).strip()
-            if not to_addr: to_addr = ab_match.group(2).strip()
+        from_m = re.search(r'(?:Откуда|Точка А|Посадка|Начало поездки)\s*[:—\-]\s*([^\n|]+)', full_text, re.IGNORECASE)
+        to_m = re.search(r'(?:Куда|Точка Б|Высадка|Конец поездки)\s*[:—\-]\s*([^\n|]+)', full_text, re.IGNORECASE)
+        if from_m and not from_addr: from_addr = from_m.group(1).strip()
+        if to_m and not to_addr: to_addr = to_m.group(1).strip()
 
     def clean_address(addr):
         if not addr: return ""
-        addr = re.split(r'(?:Куда|Тариф|Оплата|Итого|Водитель|Машина|Чек|Отзыв|Поездка)', addr, flags=re.IGNORECASE)[0]
+        addr = re.split(r'(?:Куда|Тариф|Оплата|Итого|Водитель|Машина|Чек|Отзыв|Поездка|Payment|Car|Details)', addr, flags=re.IGNORECASE)[0]
         addr = addr.strip(' ,;:-|\t\r\n')
         return addr[:100].strip()
 
@@ -246,12 +318,38 @@ def parse_yandex_go_email(msg_id, msg, raw_email_date, folder_name=""):
     elif to_addr:
         route = f"до {to_addr}"
     else:
-        route_m = re.search(r'(?:Маршрут|Поездка на такси)\s*[:—\-]\s*([^\n]+)', full_text, re.IGNORECASE)
-        if route_m:
-            route = clean_address(route_m.group(1))
-        else:
-            route = "Поездка Яндекс Go"
+        route = "Поездка Яндекс Go"
 
+    # ====================================================================
+    # 4. ДАТА (Двуязычный разбор: October 30, 2026 / 30 октября 2026)
+    # ====================================================================
+    # Английский формат: Date: October 30, 2026
+    eng_date_m = re.search(r'(?:Date|Дата)?\s*[:—\-]?\s*([a-zA-Zа-яА-ЯёЁ]+)\s+(\d{1,2}),?\s+(\d{4})', full_text)
+    if eng_date_m:
+        m_name = eng_date_m.group(1).lower()
+        d_val = int(eng_date_m.group(2))
+        y_val = int(eng_date_m.group(3))
+        if m_name in ALL_MONTHS:
+            try:
+                ride_dt = datetime.datetime(y_val, ALL_MONTHS[m_name], d_val)
+                date_str = ride_dt.strftime("%d.%m.%Y")
+            except Exception:
+                pass
+    else:
+        # Русский формат: 30 октября 2026 или 30.10.2026
+        ru_date_m = re.search(r'(\d{1,2})\s+([а-яА-ЯёЁa-zA-Z]+)(?:,?\s+(\d{4}))?', full_text)
+        if ru_date_m:
+            d_val = int(ru_date_m.group(1))
+            m_name = ru_date_m.group(2).lower()
+            y_val = int(ru_date_m.group(3)) if ru_date_m.group(3) else dt.year
+            if m_name in ALL_MONTHS:
+                try:
+                    ride_dt = datetime.datetime(y_val, ALL_MONTHS[m_name], d_val)
+                    date_str = ride_dt.strftime("%d.%m.%Y")
+                except Exception:
+                    pass
+
+    # Всегда формируем аккуратное русское описание для бухгалтерии и отчётов
     description = f"Такси Яндекс Go: {route} ({time_str})"
 
     return {
@@ -264,6 +362,9 @@ def parse_yandex_go_email(msg_id, msg, raw_email_date, folder_name=""):
         "from": from_addr,
         "to": to_addr,
         "amount": amount,
+        "paymentType": payment_type,
+        "paymentLabel": payment_label,
+        "isCorporate": is_cashless,
         "description": description,
         "subject": subject,
         "sender": sender,
@@ -271,14 +372,9 @@ def parse_yandex_go_email(msg_id, msg, raw_email_date, folder_name=""):
     }
 
 def get_target_folders(mail):
-    """
-    Получает список всех папок и отбирает папки для сканирования:
-    INBOX, а также папки содержащие 'чек', 'receipt', 'заказ', 'яндекс', 'такси'.
-    """
     target_folders = []
     seen_names = set()
 
-    # Всегда добавляем INBOX первым
     target_folders.append(("INBOX", "INBOX"))
     seen_names.add("INBOX".lower())
 
@@ -293,7 +389,6 @@ def get_target_folders(mail):
                 dec_lower = decoded_name.lower()
                 flags_lower = flags.lower()
 
-                # Пропускаем служебные и корзину
                 if '\\trash' in flags_lower or '\\junk' in flags_lower or '\\drafts' in flags_lower or '\\sent' in flags_lower:
                     continue
                 if any(bad in dec_lower for bad in ['корзина', 'спам', 'отправлен', 'черновик', 'trash', 'spam', 'sent', 'drafts']):
@@ -302,8 +397,7 @@ def get_target_folders(mail):
                 if dec_lower in seen_names:
                     continue
 
-                # Ищем папки чеков и поездок
-                keywords = ['чек', 'receipt', 'заказ', 'order', 'яндекс', 'yandex', 'такси', 'taxi', 'поездк']
+                keywords = ['чек', 'receipt', 'заказ', 'order', 'яндекс', 'yandex', 'такси', 'taxi', 'поездк', 'ride']
                 if any(kw in dec_lower for kw in keywords):
                     target_folders.append((raw_name, decoded_name))
                     seen_names.add(dec_lower)
@@ -326,7 +420,6 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
         return {"success": False, "error": f"Ошибка входа: {str(e)}"}
 
     try:
-        # Получаем целевые папки (INBOX + «Чеки» + другие подходящие)
         target_folders = get_target_folders(mail)
         scanned_folder_names = [dec for raw, dec in target_folders]
 
@@ -355,7 +448,6 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
             try:
                 status, data = mail.search(None, search_query)
             except Exception:
-                # Если SINCE не сработал на какой-то папке, пробуем ALL
                 try:
                     status, data = mail.search(None, 'ALL')
                 except Exception:
@@ -365,7 +457,6 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
                 continue
 
             msg_ids = data[0].split()
-            # Свежие сначала
             msg_ids = msg_ids[::-1]
 
             for msg_id in msg_ids:
@@ -390,17 +481,11 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
                 if msg_uuid and msg_uuid in seen_message_ids:
                     continue
 
-                # Проверка: относится ли письмо к Яндекс Go / Яндекс.Такси
                 is_yandex_taxi = False
-                if 'taxi.yandex' in sender or 'go.yandex' in sender or 'taximeter' in sender:
+                if any(s in sender for s in ['taxi.yandex', 'go.yandex', 'taximeter', 'yandex']):
                     is_yandex_taxi = True
-                elif 'yandex' in sender and ('taxi' in subject or 'такси' in subject or 'поездка' in subject or 'чек' in subject):
+                elif any(kw in subject for kw in ['яндекс go', 'яндекс.такси', 'яндекс такси', 'yandex.taxi', 'yandex go', 'taxi', 'такси', 'поездка', 'ride', 'чек']):
                     is_yandex_taxi = True
-                elif any(kw in subject for kw in ['яндекс go', 'яндекс.такси', 'яндекс такси', 'yandex.taxi', 'yandex go']):
-                    is_yandex_taxi = True
-                elif any(kw in subject for kw in ['поездка на такси', 'отчет о поездке', 'отчёт о поездке', 'электронный чек']):
-                    if any(yk in (subject + sender) for yk in ['яндекс', 'yandex', 'taxi', 'такси']):
-                        is_yandex_taxi = True
 
                 if not is_yandex_taxi:
                     continue
@@ -416,7 +501,6 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
                 full_msg = email.message_from_bytes(full_data[0][1])
                 parsed = parse_yandex_go_email(msg_id.decode('utf-8', errors='ignore'), full_msg, raw_date, dec_folder)
 
-                # Защита от дубликатов по дате, времени, сумме и маршруту
                 sig = f"{parsed['date']}_{parsed['time']}_{parsed['amount']}_{parsed['route']}"
                 if sig in seen_ride_signatures:
                     continue
@@ -428,11 +512,17 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
                 results.append(parsed)
 
         mail.logout()
+
+        # Автоматическая синхронизация найденных поездок с таблицей taxi_rides PocketBase
+        updated_items, new_saved_count, total_db_count = sync_rides_to_pocketbase(results)
+
         return {
             "success": True,
-            "count": len(results),
+            "count": len(updated_items),
+            "newCount": new_saved_count,
+            "totalInDb": total_db_count,
             "foldersScanned": scanned_folder_names,
-            "items": results
+            "items": updated_items
         }
 
     except Exception as e:
@@ -441,6 +531,134 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
         except Exception:
             pass
         return {"success": False, "error": f"Ошибка сканирования почты: {str(e)}"}
+
+def sync_rides_to_pocketbase(rides, pb_url="http://127.0.0.1:8090"):
+    """
+    Автоматически сохраняет найденные поездки в коллекцию taxi_rides PocketBase.
+    - Проверяет дубликаты по messageId и сигнатуре (дата + время + сумма).
+    - Автоматически находит подходящую командировку по датам и заполняет tripId.
+    """
+    import urllib.request
+    import urllib.error
+    from datetime import datetime
+
+    def parse_ru_date(d_str):
+        if not d_str:
+            return None
+        parts = d_str.strip().split('.')
+        if len(parts) == 3:
+            try:
+                return datetime(int(parts[2]), int(parts[1]), int(parts[0]))
+            except Exception:
+                pass
+        return None
+
+    # 1. Получаем существующие командировки из PB
+    trips = []
+    try:
+        req = urllib.request.Request(f"{pb_url}/api/collections/trips/records?filter=(deleted!=true)&perPage=500")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            trips = data.get('items', [])
+    except Exception as e:
+        sys.stderr.write(f"PB trips fetch notice: {e}\n")
+
+    # 2. Получаем существующие записи taxi_rides из PB
+    existing_rides = []
+    existing_msg_ids = set()
+    existing_signatures = set()
+    try:
+        req = urllib.request.Request(f"{pb_url}/api/collections/taxi_rides/records?perPage=500")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            existing_rides = data.get('items', [])
+            for r in existing_rides:
+                mid = r.get('messageId')
+                if mid:
+                    existing_msg_ids.add(mid)
+                sig = f"{r.get('date')}_{r.get('time')}_{round(float(r.get('amount', 0)), 2)}"
+                existing_signatures.add(sig)
+    except Exception as e:
+        sys.stderr.write(f"PB taxi_rides fetch notice: {e}\n")
+
+    new_saved_count = 0
+    updated_items = []
+
+    for ride in rides:
+        msg_id = ride.get('messageId', '').strip()
+        amt = round(float(ride.get('amount', 0)), 2)
+        sig = f"{ride.get('date')}_{ride.get('time')}_{amt}"
+
+        # Проверка на дубликат: если уже есть в базе
+        if (msg_id and msg_id in existing_msg_ids) or (sig in existing_signatures):
+            ride['isNewInDb'] = False
+            for er in existing_rides:
+                er_sig = f"{er.get('date')}_{er.get('time')}_{round(float(er.get('amount', 0)), 2)}"
+                if (msg_id and er.get('messageId') == msg_id) or (er_sig == sig):
+                    ride['pbId'] = er.get('id')
+                    ride['tripId'] = er.get('trip', '')
+                    ride['status'] = er.get('status', 'pending')
+                    ride['expenseId'] = er.get('expenseId', '')
+                    break
+            updated_items.append(ride)
+            continue
+
+        # Пытаемся автоматически сопоставить с командировкой по дате
+        matched_trip_id = ""
+        ride_dt = parse_ru_date(ride.get('date'))
+        if ride_dt:
+            for t in trips:
+                s_dt = parse_ru_date(t.get('startDate'))
+                f_dt = parse_ru_date(t.get('finishDate') or t.get('startDate'))
+                if s_dt and f_dt and s_dt <= ride_dt <= f_dt:
+                    matched_trip_id = t.get('id', '')
+                    break
+
+        status = "matched" if matched_trip_id else "pending"
+
+        payload = {
+            "messageId": msg_id,
+            "date": ride.get('date', ''),
+            "time": ride.get('time', ''),
+            "fromAddress": ride.get('from', ''),
+            "toAddress": ride.get('to', ''),
+            "route": ride.get('route', ''),
+            "amount": amt,
+            "paymentType": ride.get('paymentType', 'cashless'),
+            "paymentLabel": ride.get('paymentLabel', ''),
+            "isCorporate": bool(ride.get('isCorporate', False)),
+            "description": ride.get('description', ''),
+            "trip": matched_trip_id,
+            "status": status,
+            "deleted": False
+        }
+
+        try:
+            req = urllib.request.Request(
+                f"{pb_url}/api/collections/taxi_rides/records",
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                created_record = json.loads(resp.read().decode('utf-8'))
+                ride['pbId'] = created_record.get('id')
+                ride['tripId'] = matched_trip_id
+                ride['status'] = status
+                ride['isNewInDb'] = True
+                new_saved_count += 1
+                if msg_id:
+                    existing_msg_ids.add(msg_id)
+                existing_signatures.add(sig)
+        except Exception as e:
+            sys.stderr.write(f"Error saving ride to PB: {e}\n")
+            ride['isNewInDb'] = False
+
+        updated_items.append(ride)
+
+    total_db_count = len(existing_msg_ids) if existing_msg_ids else len(existing_rides) + new_saved_count
+    return updated_items, new_saved_count, total_db_count
+
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == '--json':

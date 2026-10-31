@@ -11,7 +11,7 @@ export async function fetchServerTimeOffset() { return 0; }
 // 1. Быстрая синхронизация всех данных из PocketBase в локальный Dexie кэш
 export async function syncWithPocketBase() {
   try {
-    const [tripsRes, expensesRes, paymentsRes, clientsRes, settingsRes] = await Promise.all([
+    const [tripsRes, expensesRes, paymentsRes, clientsRes, settingsRes, taxiRidesRes] = await Promise.all([
       fetch(`${PB_URL}/api/collections/trips/records?filter=(deleted!=true)&perPage=500`).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -31,7 +31,11 @@ export async function syncWithPocketBase() {
       fetch(`${PB_URL}/api/collections/settings/records?perPage=1`).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
-      })
+      }),
+      fetch(`${PB_URL}/api/collections/taxi_rides/records?filter=(deleted!=true)&perPage=500`).then(r => {
+        if (!r.ok) return { items: [] };
+        return r.json();
+      }).catch(() => ({ items: [] }))
     ]);
 
     // Обновляем настройки в localStorage для моментального доступа
@@ -76,6 +80,11 @@ export async function syncWithPocketBase() {
       category: e.category || '',
       paymentType: e.paymentType || 'cash',
       articleCode: e.articleCode || '',
+      fromAddress: e.fromAddress || '',
+      toAddress: e.toAddress || '',
+      route: e.route || '',
+      rideTime: e.rideTime || '',
+      taxiRideId: e.taxiRideId || '',
       receipt: e.receipt || '',
       receiptUrl: e.receipt ? `${PB_URL}/api/files/expenses/${e.id}/${e.receipt}` : '',
       receiptName: e.receipt || '',
@@ -101,17 +110,40 @@ export async function syncWithPocketBase() {
       address: c.address || ''
     }));
 
+    // Преобразуем поездки такси
+    const taxiRides = (taxiRidesRes.items || []).map(r => ({
+      id: r.id,
+      tripId: r.trip || '',
+      messageId: r.messageId || '',
+      date: r.date || '',
+      time: r.time || '',
+      fromAddress: r.fromAddress || '',
+      toAddress: r.toAddress || '',
+      route: r.route || '',
+      amount: r.amount || 0,
+      paymentType: r.paymentType || 'cashless',
+      paymentLabel: r.paymentLabel || '',
+      isCorporate: r.isCorporate !== false,
+      description: r.description || '',
+      expenseId: r.expenseId || '',
+      status: r.status || 'pending',
+      created: r.created,
+      updated: r.updated
+    }));
+
     // Атомарно перезаписываем локальный Dexie кэш
-    await db.transaction('rw', [db.trips, db.expenses, db.payments, db.clients], async () => {
+    await db.transaction('rw', [db.trips, db.expenses, db.payments, db.clients, db.taxi_rides], async () => {
       await db.trips.clear();
       await db.expenses.clear();
       await db.payments.clear();
       await db.clients.clear();
+      await db.taxi_rides.clear();
 
       if (trips.length > 0) await db.trips.bulkPut(trips);
       if (expenses.length > 0) await db.expenses.bulkPut(expenses);
       if (payments.length > 0) await db.payments.bulkPut(payments);
       if (clients.length > 0) await db.clients.bulkPut(clients);
+      if (taxiRides.length > 0) await db.taxi_rides.bulkPut(taxiRides);
     });
 
     try {
@@ -120,7 +152,7 @@ export async function syncWithPocketBase() {
 
     return {
       success: true,
-      count: { trips: trips.length, expenses: expenses.length, payments: payments.length, clients: clients.length }
+      count: { trips: trips.length, expenses: expenses.length, payments: payments.length, clients: clients.length, taxiRides: taxiRides.length }
     };
   } catch (err) {
     console.error('PocketBase sync error:', err);
@@ -235,6 +267,11 @@ export async function createPbExpense(data, fileBlob, fileName) {
     formData.append('category', data.category || '');
     formData.append('paymentType', data.paymentType || 'cash');
     formData.append('articleCode', data.articleCode || '');
+    if (data.fromAddress) formData.append('fromAddress', data.fromAddress);
+    if (data.toAddress) formData.append('toAddress', data.toAddress);
+    if (data.route) formData.append('route', data.route);
+    if (data.rideTime) formData.append('rideTime', data.rideTime);
+    if (data.taxiRideId) formData.append('taxiRideId', data.taxiRideId);
     formData.append('receipt', fileBlob, fileName || 'receipt.jpg');
 
     const res = await fetch(`${PB_URL}/api/collections/expenses/records`, {
@@ -251,7 +288,12 @@ export async function createPbExpense(data, fileBlob, fileName) {
       description: data.description || '',
       category: data.category || '',
       paymentType: data.paymentType || 'cash',
-      articleCode: data.articleCode || ''
+      articleCode: data.articleCode || '',
+      fromAddress: data.fromAddress || '',
+      toAddress: data.toAddress || '',
+      route: data.route || '',
+      rideTime: data.rideTime || '',
+      taxiRideId: data.taxiRideId || ''
     };
     const res = await fetch(`${PB_URL}/api/collections/expenses/records`, {
       method: 'POST',
@@ -271,6 +313,11 @@ export async function createPbExpense(data, fileBlob, fileName) {
     category: rec.category || '',
     paymentType: rec.paymentType || 'cash',
     articleCode: rec.articleCode || '',
+    fromAddress: rec.fromAddress || data.fromAddress || '',
+    toAddress: rec.toAddress || data.toAddress || '',
+    route: rec.route || data.route || '',
+    rideTime: rec.rideTime || data.rideTime || '',
+    taxiRideId: rec.taxiRideId || data.taxiRideId || '',
     receipt: rec.receipt || '',
     receiptUrl: rec.receipt ? `${PB_URL}/api/files/expenses/${rec.id}/${rec.receipt}` : '',
     receiptName: rec.receipt || ''
@@ -308,6 +355,11 @@ export async function updatePbExpense(id, data, fileBlob, fileName) {
     if (data.category !== undefined) payload.category = data.category;
     if (data.paymentType !== undefined) payload.paymentType = data.paymentType;
     if (data.articleCode !== undefined) payload.articleCode = data.articleCode;
+    if (data.fromAddress !== undefined) payload.fromAddress = data.fromAddress;
+    if (data.toAddress !== undefined) payload.toAddress = data.toAddress;
+    if (data.route !== undefined) payload.route = data.route;
+    if (data.rideTime !== undefined) payload.rideTime = data.rideTime;
+    if (data.taxiRideId !== undefined) payload.taxiRideId = data.taxiRideId;
 
     const res = await fetch(`${PB_URL}/api/collections/expenses/records/${id}`, {
       method: 'PATCH',
@@ -415,4 +467,92 @@ export async function updatePbSettings(settings) {
   });
   if (!res.ok) throw new Error(await res.text());
   return await res.json();
+}
+
+// ====================================================================
+// 12. ПОЕЗДКИ ТАКСИ (TAXI RIDES)
+// ====================================================================
+
+// Обновление поездки такси в PocketBase и Dexie
+export async function updatePbTaxiRide(id, data) {
+  const payload = {};
+  if (data.trip !== undefined) payload.trip = data.trip;
+  if (data.tripId !== undefined) payload.trip = data.tripId;
+  if (data.status !== undefined) payload.status = data.status;
+  if (data.expenseId !== undefined) payload.expenseId = data.expenseId;
+  if (data.paymentType !== undefined) payload.paymentType = data.paymentType;
+  if (data.paymentLabel !== undefined) payload.paymentLabel = data.paymentLabel;
+
+  const res = await fetch(`${PB_URL}/api/collections/taxi_rides/records/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const rec = await res.json();
+  await db.taxi_rides.update(id, data);
+  return rec;
+}
+
+// Связывание поездки такси с расходом командировки
+export async function linkTaxiRideToTrip(ride, tripId, paymentType) {
+  const pType = paymentType || ride.paymentType || (ride.isCorporate ? 'cashless' : 'cash');
+  
+  // 1. Создаем расход
+  const expData = {
+    tripId: String(tripId),
+    date: ride.date,
+    amount: parseFloat(ride.amount) || 0,
+    description: ride.description || `Такси: ${ride.fromAddress || ''} → ${ride.toAddress || ''} (${ride.time || ''})`,
+    category: 'Транспорт',
+    paymentType: pType,
+    articleCode: 'ТАХI',
+    fromAddress: ride.fromAddress || '',
+    toAddress: ride.toAddress || '',
+    route: ride.route || '',
+    rideTime: ride.time || '',
+    taxiRideId: String(ride.id)
+  };
+
+  const createdExpense = await createPbExpense(expData);
+
+  // 2. Обновляем статус в taxi_rides
+  await updatePbTaxiRide(ride.id, {
+    trip: String(tripId),
+    tripId: String(tripId),
+    status: 'linked',
+    expenseId: createdExpense.id,
+    paymentType: pType
+  });
+
+  return createdExpense;
+}
+
+// Отвязывание поездки такси от командировки (удаление из расходов)
+export async function unlinkTaxiRideFromTrip(rideId) {
+  const ride = await db.taxi_rides.get(String(rideId));
+  if (!ride) return;
+
+  if (ride.expenseId) {
+    try {
+      await deletePbExpense(ride.expenseId);
+      await db.expenses.delete(ride.expenseId);
+    } catch (e) {
+      console.warn('Expense delete warning:', e);
+    }
+  }
+
+  await updatePbTaxiRide(rideId, {
+    trip: '',
+    tripId: '',
+    status: 'pending',
+    expenseId: ''
+  });
+}
+
+// Переключение статуса "Личная поездка (скрыть из отчетов)"
+export async function toggleIgnoreTaxiRide(rideId, isIgnored) {
+  await updatePbTaxiRide(rideId, {
+    status: isIgnored ? 'ignored' : 'pending'
+  });
 }

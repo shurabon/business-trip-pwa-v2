@@ -196,7 +196,17 @@ export async function exportAO1Excel(tripId) {
   // 3. Чеки наличными
   cashExpenses.forEach(exp => {
     ws.getCell(`A${rowIdx}`).value = exp.date || '';
-    ws.getCell(`B${rowIdx}`).value = exp.description || 'Расход по чеку';
+    
+    let desc = exp.description || 'Расход по чеку';
+    if (exp.fromAddress && exp.toAddress) {
+      const timePart = exp.rideTime ? `, ${exp.rideTime}` : '';
+      desc = `Такси: ${exp.fromAddress} → ${exp.toAddress} (${exp.date}${timePart})`;
+    } else if (exp.route) {
+      const timePart = exp.rideTime ? `, ${exp.rideTime}` : '';
+      desc = `Такси: ${exp.route} (${exp.date}${timePart})`;
+    }
+
+    ws.getCell(`B${rowIdx}`).value = desc;
     ws.getCell(`C${rowIdx}`).value = exp.articleCode || defaultArticle;
     ws.getCell(`D${rowIdx}`).value = parseFloat(exp.amount) || 0;
     rowIdx++;
@@ -292,7 +302,17 @@ export async function exportAO1Excel(tripId) {
   } else {
     cashlessExpenses.forEach(exp => {
       ws.getCell(`A${rowIdx}`).value = exp.date || '';
-      ws.getCell(`B${rowIdx}`).value = exp.description || 'Безналичная оплата компанией';
+
+      let desc = exp.description || 'Безналичная оплата компанией';
+      if (exp.fromAddress && exp.toAddress) {
+        const timePart = exp.rideTime ? `, ${exp.rideTime}` : '';
+        desc = `Такси: ${exp.fromAddress} → ${exp.toAddress} (${exp.date}${timePart})`;
+      } else if (exp.route) {
+        const timePart = exp.rideTime ? `, ${exp.rideTime}` : '';
+        desc = `Такси: ${exp.route} (${exp.date}${timePart})`;
+      }
+
+      ws.getCell(`B${rowIdx}`).value = desc;
       ws.getCell(`C${rowIdx}`).value = exp.articleCode || defaultArticle;
       ws.getCell(`D${rowIdx}`).value = parseFloat(exp.amount) || 0;
       rowIdx++;
