@@ -14,15 +14,15 @@
   <!-- Explicit Favicon & Touch Icons -->
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192-CeNIF_hT.png">
   <link rel="icon" type="image/png" sizes="512x512" href="./assets/icon-512-CZWraPF7.png">
-  <link rel="apple-touch-icon" sizes="192x192" href="./icon-maskable-192.png">
-  <link rel="apple-touch-icon" sizes="512x512" href="./icon-maskable-512.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="./assets/icon-maskable-192-aL_vvTgr.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./assets/icon-maskable-512-Dfu05XT7.png">
   <link rel="shortcut icon" href="./assets/icon-192-CeNIF_hT.png">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-DntXniNP.js"></script>
+  <script type="module" crossorigin src="./assets/index-DcWaL0BH.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-CAm7wo_R.css">
 </head>
 <body>
@@ -170,6 +170,9 @@
             <option value="prevMonth">Прошлый месяц</option>
             <option value="all">За всё время</option>
           </select>
+          <button class="btn btn-sm btn-secondary" onclick="openYandexGoModal()" style="padding:6px 12px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:4px; border-color:#F59E0B; color:#B45309;" title="Импорт поездок Яндекс Go из почты">
+            <span class="material-symbols-outlined" style="font-size:16px; color:#F59E0B;">local_taxi</span> Яндекс Go
+          </button>
           <button class="btn btn-sm" onclick="openQuickAddModal()" style="padding:6px 14px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:4px;">
             <span class="material-symbols-outlined" style="font-size:16px;">add</span> Добавить
           </button>
@@ -291,6 +294,45 @@
     <!-- TAB 6: SETTINGS & DICTIONARIES & YANDEX SYNC MANAGEMENT -->
     <div id="settingsTab" class="tab-content">
 
+
+      <!-- КАРТОЧКА: ИНТЕГРАЦИЯ С ПОЧТОЙ (ПОЕЗДКИ ЯНДЕКС GO) -->
+      <div class="card" style="border: 1px solid #FCD34D; background: #FFFBEB;">
+        <div class="card-title" style="color: #92400E;">
+          <span class="material-symbols-outlined" style="color: #D97706;">local_taxi</span> Интеграция с почтой (Поездки Яндекс Go)
+        </div>
+        <p style="font-size: 13px; color: #78350F; margin-bottom: 14px; line-height: 1.4;">
+          Автоматический поиск и импорт поездок из почты (Mail.ru). Загружаются маршрут («откуда — куда»), дата и точное время поездки.
+        </p>
+
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label style="font-size: 12px; font-weight: 600; color: #78350F;">Ваш Email (Mail.ru):</label>
+          <input type="email" id="mailruEmailInput" class="form-control" placeholder="example@mail.ru" style="font-weight: 500;">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label style="font-size: 12px; font-weight: 600; color: #78350F;">Пароль для внешних приложений:</label>
+          <div style="display:flex; gap:8px;">
+            <input type="password" id="mailruPasswordInput" class="form-control" placeholder="xxxx-xxxx-xxxx-xxxx" style="font-family: monospace;">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleMailPasswordVisibility()" style="border-color:#F59E0B; color:#92400E; min-width: 44px;" title="Показать/скрыть">👁️</button>
+          </div>
+          <small style="color: #92400E; font-size: 11px; margin-top: 4px; display: block;">
+            💡 Создается в Mail.ru: <em>Настройки → Безопасность → Пароли для внешних приложений</em>
+          </small>
+        </div>
+
+        <div id="mailruStatusBadge" style="font-size: 12.5px; font-weight: 500; color: #78350F; margin-bottom: 14px; background:#FEF3C7; padding:8px 12px; border-radius:8px; display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-outlined" style="font-size:18px;">mail</span> Статус: Не настроено
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" class="btn" style="flex:1; background:#D97706; font-size:13px; font-weight:600; padding:10px 14px; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="saveMailruSettings()">
+            <span class="material-symbols-outlined" style="font-size:18px;">save</span> Сохранить настройки
+          </button>
+          <button type="button" class="btn btn-secondary" style="flex:1; border-color:#D97706; color:#92400E; font-size:13px; font-weight:600; padding:10px 14px; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="testMailruConnection()">
+            <span class="material-symbols-outlined" style="font-size:18px;">wifi</span> Проверить связь
+          </button>
+        </div>
+      </div>
 
       <!-- КАРТОЧКА: СИНХРОНИЗАЦИЯ ЧЕРЕЗ GITHUB GIST -->
       <div class="card">
@@ -823,6 +865,43 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНОЕ ОКНО ИМПОРТА ПОЕЗДОК ЯНДЕКС GO -->
+  <div id="yandexGoModal" class="bottom-sheet-backdrop" onclick="closeYandexGoModal()">
+    <div class="bottom-sheet-card" onclick="event.stopPropagation()" style="max-height: 85vh; display:flex; flex-direction:column; max-width: 600px; margin: auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #E1E2EC; padding-bottom:10px;">
+        <strong style="font-size:17px; color:#D97706; display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-outlined" style="color:#D97706;">local_taxi</span> Поездки Яндекс Go из почты
+        </strong>
+        <span class="material-symbols-outlined" style="cursor:pointer; color:#666; font-size:24px;" onclick="closeYandexGoModal()">close</span>
+      </div>
+
+      <!-- Фильтры / статус сканирования -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px; background:#F8FAFC; padding:8px 12px; border-radius:10px; border:1px solid #E2E8F0;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:12px; font-weight:600; color:#475569;">Период:</span>
+          <select id="ygoScanDaysSelect" class="form-control" style="font-size:12px; padding:3px 8px; width:auto; font-weight:500;" onchange="triggerYandexGoScan()">
+            <option value="14">14 дней</option>
+            <option value="30" selected>30 дней</option>
+            <option value="60">60 дней</option>
+            <option value="90">90 дней</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-sm" style="background:#D97706; font-size:12px; padding:6px 12px; font-weight:600; display:flex; align-items:center; gap:4px;" onclick="triggerYandexGoScan()">
+          <span class="material-symbols-outlined" style="font-size:16px;">sync</span> Сканировать сейчас
+        </button>
+      </div>
+
+      <!-- Контейнер состояния: Загрузка / Ошибка / Список -->
+      <div id="ygoScanContainer" style="overflow-y:auto; flex:1; padding-right:2px; max-height:calc(85vh - 150px);">
+        <div style="text-align:center; padding:30px 10px; color:#64748B;">
+          <span class="material-symbols-outlined" style="font-size:40px; color:#F59E0B; margin-bottom:8px;">forward_to_inbox</span>
+          <p style="font-size:13.5px; margin:0 0 6px;">Нажмите «Сканировать сейчас» для поиска поездок</p>
+          <small style="color:#94A3B8;">Почта: <span id="ygoCurrentEmailHint">не настроена</span></small>
+        </div>
       </div>
     </div>
   </div>
