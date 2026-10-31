@@ -1,8 +1,12 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "ru.danilovhome.businesstrips",
-        "sha256_cert_fingerprints": ["DF:3C:58:80:5F:C1:FC:91:E1:36:19:DA:CD:CD:4C:23:A5:7F:0E:1E:DA:E0:85:BE:1C:D6:84:A5:C7:65:FE:E2"]
-      }
-    }]
+﻿[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "ru.danilovhome.businesstrips",
+    "sha256_cert_fingerprints": [
+      "39:34:69:A8:1A:C6:88:55:AA:80:B0:0D:77:F3:78:5C:2B:9D:7F:48:CF:A4:84:6B:E8:0C:8F:85:8C:A0:18:45",
+      "DF:3C:58:80:5F:C1:FC:91:E1:36:19:DA:CD:CD:4C:23:A5:7F:0E:1E:DA:E0:85:BE:1C:D6:84:A5:C7:65:FE:E2",
+      "DC:F2:BB:83:A0:44:45:6E:E1:51:D6:FB:9E:63:96:5B:03:8E:B6:AC:C6:3B:AE:5A:41:48:7B:FA:27:C1:44:20"
+    ]
+  }
+}]
