@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-BpOa_FcI.js"></script>
+  <script type="module" crossorigin src="./assets/index-BtdNfAAj.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-CAm7wo_R.css">
 </head>
 <body>
@@ -169,6 +169,9 @@
             <option value="currentMonth" selected>Текущий месяц</option>
             <option value="prevMonth">Прошлый месяц</option>
             <option value="all">За всё время</option>
+          </select>
+          <select id="expenseTripFilter" class="form-control" style="width: auto; font-size: 13px; padding: 4px 8px; max-width: 170px;" onchange="renderExpensesList()">
+            <option value="all" selected>Все клиенты</option>
           </select>
           <button class="btn btn-sm btn-secondary" onclick="openYandexGoModal()" style="padding:6px 12px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:4px; border-color:#F59E0B; color:#B45309;" title="Импорт поездок Яндекс Go из почты">
             <span class="material-symbols-outlined" style="font-size:16px; color:#F59E0B;">local_taxi</span> Яндекс Go
@@ -682,8 +685,10 @@
 
       <form id="quickExpenseForm" onsubmit="handleQuickAddExpense(event)">
         <div class="form-group">
-          <label>Выберите командировку</label>
-          <select id="quickExpenseTripId" class="form-control" required></select>
+          <label style="font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span class="material-symbols-outlined" style="font-size:18px; color:var(--md-sys-color-primary);">business</span> Клиент / Командировка
+          </label>
+          <select id="quickExpenseTripId" class="form-control" required style="font-weight:500;"></select>
         </div>
 
         <div class="form-row">
@@ -753,8 +758,10 @@
 
       <form id="quickPaymentForm" onsubmit="handleQuickAddPayment(event)">
         <div class="form-group">
-          <label>Выберите командировку</label>
-          <select id="quickPaymentTripId" class="form-control" required></select>
+          <label style="font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span class="material-symbols-outlined" style="font-size:18px; color:#2E7D32;">business</span> Клиент / Командировка
+          </label>
+          <select id="quickPaymentTripId" class="form-control" required style="font-weight:500;"></select>
         </div>
 
         <div class="form-row">
