@@ -22,8 +22,11 @@ export let pending2FASecret = null;
 export let inactivityTimer = null;
 
 export function is2FAEnabled() {
-  const secret = localStorage.getItem(TWO_FACTOR_KEY);
-  return !!(secret && secret.trim().length >= 16);
+  // Яндекс Ключ (2FA) временно отключен разработчиком в пользу шлюза Authelia на Proxmox.
+  // Логика TOTP сохранена в модуле для возможного повторного включения.
+  return false;
+  // const secret = localStorage.getItem(TWO_FACTOR_KEY);
+  // return !!(secret && secret.trim().length >= 16);
 }
 
 export function is2FAAuthorized() {
@@ -146,18 +149,13 @@ export function update2FAStatusUI() {
 
   if (!badge) return;
 
-  if (is2FAEnabled()) {
-    badge.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px; color:#15803D;">verified_user</span> <span style="color:#15803D;">2FA активирована (Яндекс Ключ)</span>';
-    badge.style.background = '#DCFCE7';
-    if (btnSetup) btnSetup.style.display = 'none';
-    if (btnDisable) btnDisable.style.display = 'inline-flex';
-  } else {
-    badge.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">lock_open</span> 2FA отключена';
-    badge.style.background = '#E0E7FF';
-    badge.style.color = '#3730A3';
-    if (btnSetup) btnSetup.style.display = 'inline-flex';
-    if (btnDisable) btnDisable.style.display = 'none';
-  }
+  // Авторизация делегирована шлюзу Authelia
+  badge.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px; color:#0284C7;">shield</span> <span style="color:#0369A1; font-weight:500;">Защита через Authelia (Яндекс Ключ временно приостановлен)</span>';
+  badge.style.background = '#E0F2FE';
+  badge.style.color = '#0369A1';
+  badge.style.border = '1px solid #BAE6FD';
+  if (btnSetup) btnSetup.style.display = 'none';
+  if (btnDisable) btnDisable.style.display = 'none';
 }
 
 /**
