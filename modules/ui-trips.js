@@ -1186,9 +1186,9 @@ export async function refreshTripSelects() {
   const aggregated = await getAggregatedSummary();
   const trips = aggregated.tripSummaries;
 
-  const expTripSelect = document.getElementById('expenseTripId');
-  const payTripSelect = document.getElementById('paymentTripId');
-  const reportTripSelect = document.getElementById('reportTripSelect') || document.getElementById('reportTripId');
+  const expTripSelects = [document.getElementById('quickExpenseTripId'), document.getElementById('expenseTripId')].filter(Boolean);
+  const payTripSelects = [document.getElementById('quickPaymentTripId'), document.getElementById('paymentTripId')].filter(Boolean);
+  const reportTripSelects = [document.getElementById('reportTripSelect'), document.getElementById('reportTripId')].filter(Boolean);
   
   const showClosedExp = document.getElementById('showClosedTripsExp')?.checked;
   const showClosedPay = document.getElementById('showClosedTripsPay')?.checked;
@@ -1214,33 +1214,41 @@ export async function refreshTripSelects() {
   const paySummaries = showClosedPay ? trips : trips.filter(isTripOpenForPayment);
   const repSummaries = showClosedRep ? trips : trips.filter(isTripOpenForPayment);
 
-  if (expTripSelect) {
-    const currentExpVal = expTripSelect.value;
-    expTripSelect.innerHTML = expSummaries.length === 0 ? '<option value="">(Нет активных командировок в работе)</option>' : '';
+  // Форматирование пунктов: Клиент всегда на первом месте
+  const formatTripLabel = (t) => {
+    const clientName = t.client ? t.client : 'Поездка';
+    const appStr = t.appNo ? ` [№${t.appNo}]` : (t.id ? ` [№${t.id}]` : '');
+    const dateStr = t.startDate ? ` (${t.startDate}${t.finishDate ? ' — ' + t.finishDate : ''})` : '';
+    return `${clientName}${appStr}${dateStr}`;
+  };
+
+  expTripSelects.forEach(selectEl => {
+    const currentVal = selectEl.value;
+    selectEl.innerHTML = expSummaries.length === 0 ? '<option value="">(Нет активных командировок в работе)</option>' : '';
     expSummaries.forEach(s => {
       const t = s.trip;
-      expTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
+      selectEl.innerHTML += `<option value="${t.id}">${formatTripLabel(t)}</option>`;
     });
-    if (currentExpVal) expTripSelect.value = currentExpVal;
-  }
+    if (currentVal) selectEl.value = currentVal;
+  });
 
-  if (payTripSelect) {
-    const currentPayVal = payTripSelect.value;
-    payTripSelect.innerHTML = paySummaries.length === 0 ? '<option value="">(Нет открытых командировок)</option>' : '';
+  payTripSelects.forEach(selectEl => {
+    const currentVal = selectEl.value;
+    selectEl.innerHTML = paySummaries.length === 0 ? '<option value="">(Нет открытых командировок)</option>' : '';
     paySummaries.forEach(s => {
       const t = s.trip;
-      payTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
+      selectEl.innerHTML += `<option value="${t.id}">${formatTripLabel(t)}</option>`;
     });
-    if (currentPayVal) payTripSelect.value = currentPayVal;
-  }
+    if (currentVal) selectEl.value = currentVal;
+  });
 
-  if (reportTripSelect) {
-    const currentRepVal = reportTripSelect.value;
-    reportTripSelect.innerHTML = repSummaries.length === 0 ? '<option value="">(Нет открытых командировок)</option>' : '';
+  reportTripSelects.forEach(selectEl => {
+    const currentVal = selectEl.value;
+    selectEl.innerHTML = repSummaries.length === 0 ? '<option value="">(Нет открытых командировок)</option>' : '';
     repSummaries.forEach(s => {
       const t = s.trip;
-      reportTripSelect.innerHTML += `<option value="${t.id}">№${t.appNo || t.id} — ${t.client || 'Поездка'} (${t.startDate || ''})</option>`;
+      selectEl.innerHTML += `<option value="${t.id}">${formatTripLabel(t)}</option>`;
     });
-    if (currentRepVal) reportTripSelect.value = currentRepVal;
-  }
+    if (currentVal) selectEl.value = currentVal;
+  });
 }

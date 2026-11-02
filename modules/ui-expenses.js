@@ -13,7 +13,7 @@
 import { db, formatDateToRu, parseRuDate } from '../db.js';
 import { createPbExpense, updatePbExpense, deletePbExpense } from '../pocketbaseSync.js';
 import { showToast, scheduleAutoSync, toId, isPdfFile, isDateInPeriod, highlightSelectedItem, closeEditBottomSheet, openPdfAttachment, applyDesktopModalStyle } from './ui-utils.js';
-import { activeTripId } from './ui-trips.js';
+import { activeTripId, refreshTripSelects } from './ui-trips.js';
 
 export let selectedFileBase64 = null;
 export let selectedFileName = null;
@@ -206,10 +206,17 @@ export function closePhotoModal() {
 /**
  * Быстрое добавление расхода (через модальное окно Speed Dial)
  */
-export function openQuickAddModal() {
+export async function openQuickAddModal() {
   const modal = document.getElementById('quickAddModal');
   const tripSelect = document.getElementById('quickExpenseTripId');
   if (!modal || !tripSelect) return;
+
+  // Всегда обновляем список командировок/клиентов перед показом окна
+  try {
+    await refreshTripSelects();
+  } catch (err) {
+    console.warn('refreshTripSelects error:', err);
+  }
 
   const todayRu = document.getElementById('expenseDate')?.value || '';
   if (document.getElementById('quickExpenseDate')) {
@@ -348,6 +355,23 @@ export async function editExpenseItem(expenseId, tripId) {
     photoPreviewHtml = `<div id="edit-photo-preview-${expenseId}" style="margin: 8px 0; color:#888; font-size:12px; text-align:center;">Фото не прикреплено</div>`;
   }
 
+  // Загружаем список командировок для смены клиента / командировки
+  const allTrips = await db.trips.toArray();
+  const trips = allTrips.filter(t => !t.isDeleted && !t.deleted);
+  const currentExpTripId = String(exp.tripId || tripId || '');
+
+  let tripOptionsHtml = trips.map(t => {
+    const selected = String(t.id) === currentExpTripId ? 'selected' : '';
+    const clientName = t.client ? t.client : 'Поездка';
+    const appStr = t.appNo ? ` [№${t.appNo}]` : (t.id ? ` [№${t.id}]` : '');
+    const dateStr = t.startDate ? ` (${t.startDate}${t.finishDate ? ' — ' + t.finishDate : ''})` : '';
+    return `<option value="${t.id}" ${selected}>${clientName}${appStr}${dateStr}</option>`;
+  }).join('');
+
+  if (trips.length === 0) {
+    tripOptionsHtml = '<option value="">(Нет активных командировок)</option>';
+  }
+
   const editFormHtml = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #E1E2EC; padding-bottom:10px;">
       <strong style="font-size:17px; color:var(--md-sys-color-primary); display:flex; align-items:center; gap:8px;">
@@ -357,6 +381,14 @@ export async function editExpenseItem(expenseId, tripId) {
     </div>
 
     <form onsubmit="event.preventDefault(); saveInlineExpense('${expenseId}', '${tripId || ''}', '${targetId}');">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label style="font-weight: 600; font-size: 13px; margin-bottom: 4px; display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-outlined" style="font-size:18px; color:var(--md-sys-color-primary);">business</span> Клиент / Командировка
+        </label>
+        <select id="editExpTripId-${expenseId}" class="form-control" style="font-size: 14px; padding: 10px 12px; font-weight:500;">
+          ${tripOptionsHtml}
+        </select>
+      </div>
       <div class="form-group" style="margin-bottom: 12px;">
         <label style="font-weight: 500; font-size: 13px; margin-bottom: 4px; display:block;">Дата расхода (ДД.ММ.ГГГГ)</label>
         <div style="position:relative; display:flex; align-items:center;">
@@ -464,6 +496,7 @@ export function clearEditPhoto(expenseId) {
 }
 
 export async function saveInlineExpense(expenseId, tripId, targetId) {
+  const selectedTripId = document.getElementById(`editExpTripId-${expenseId}`)?.value || tripId;
   const dateVal = document.getElementById(`editExpDate-${expenseId}`).value;
   const amountVal = parseFloat(document.getElementById(`editExpAmount-${expenseId}`).value) || 0;
   const descVal = document.getElementById(`editExpDesc-${expenseId}`).value;
@@ -479,6 +512,10 @@ export async function saveInlineExpense(expenseId, tripId, targetId) {
     updatedAt: new Date().toISOString()
   };
 
+  if (selectedTripId) {
+    updateData.tripId = String(selectedTripId);
+  }
+
   if (photoData.base64 !== undefined) {
     updateData.receiptBase64 = photoData.base64;
     updateData.receiptName = photoData.name;
@@ -490,7 +527,7 @@ export async function saveInlineExpense(expenseId, tripId, targetId) {
   if (photoData.base64) {
     try { photoBlob = await (await fetch(`data:image/jpeg;base64,${photoData.base64}`)).blob(); } catch(_) {}
   }
-  await updatePbExpense(toId(expenseId), updateData, photoBlob, photoData.name).catch(console.error);
+  await updatePbExpense(toId(expenseId), { ...updateData, tripId: selectedTripId }, photoBlob, photoData.name).catch(console.error);
 
   closeEditBottomSheet(targetId);
   showToast("✅ Расход обновлен!");
@@ -551,10 +588,30 @@ export async function renderExpensesList() {
   if (!container) return;
 
   const period = document.getElementById('expensePeriodFilter')?.value || 'currentMonth';
+  const tripFilterEl = document.getElementById('expenseTripFilter');
+  const selectedTripFilter = tripFilterEl?.value || 'all';
+
   const expenses = await db.expenses.toArray();
   const trips = await db.trips.toArray();
 
-  const filtered = expenses.filter(e => isDateInPeriod(e.date, period));
+  if (tripFilterEl) {
+    const curVal = tripFilterEl.value;
+    tripFilterEl.innerHTML = '<option value="all">Все клиенты</option>';
+    const activeTrips = trips.filter(t => !t.isDeleted && !t.deleted);
+    activeTrips.forEach(t => {
+      const clientName = t.client ? t.client : 'Поездка';
+      const appStr = t.appNo ? ` [№${t.appNo}]` : (t.id ? ` [№${t.id}]` : '');
+      tripFilterEl.innerHTML += `<option value="${t.id}">${clientName}${appStr}</option>`;
+    });
+    if (curVal && [...tripFilterEl.options].some(o => o.value === curVal)) {
+      tripFilterEl.value = curVal;
+    }
+  }
+
+  let filtered = expenses.filter(e => isDateInPeriod(e.date, period));
+  if (selectedTripFilter && selectedTripFilter !== 'all') {
+    filtered = filtered.filter(e => String(e.tripId) === String(selectedTripFilter));
+  }
 
   filtered.sort((a, b) => {
     const da = parseRuDate(a.date) || new Date(0);
@@ -578,7 +635,12 @@ export async function renderExpensesList() {
   let html = '';
   filtered.forEach(exp => {
     const trip = trips.find(t => String(t.id) === String(exp.tripId));
-    const tripName = trip ? `№${trip.appNo || trip.id} ${trip.client || ''}` : 'Командировка';
+    let tripName = 'Командировка';
+    if (trip) {
+      const clientPart = trip.client ? trip.client : 'Командировка';
+      const appPart = trip.appNo ? ` [№${trip.appNo}]` : (trip.id ? ` [№${trip.id}]` : '');
+      tripName = `${clientPart}${appPart}`;
+    }
 
     let icon = 'receipt_long';
     if (exp.category === 'Транспорт' || exp.fromAddress || exp.taxiRideId) {
