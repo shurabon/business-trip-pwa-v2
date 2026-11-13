@@ -708,9 +708,34 @@ export function closeCreateTripModal() {
  * Создание командировки из модального окна
  */
 export async function handleCreateTripModal(event) {
-  event.preventDefault();
+  if (event && event.preventDefault) event.preventDefault();
+
   const clientName = document.getElementById('modalTripClient').value.trim();
   const locationVal = document.getElementById('modalTripTarget').value.trim();
+
+  // Ручная валидация (вместо browser-native required, который глючит в bottom-sheet на iOS)
+  if (!clientName) {
+    showToast('⚠️ Укажите клиента');
+    document.getElementById('modalTripClient')?.focus();
+    return;
+  }
+  if (!locationVal) {
+    showToast('⚠️ Укажите место командировки');
+    document.getElementById('modalTripTarget')?.focus();
+    return;
+  }
+  const startDateVal = document.getElementById('modalTripStartDate').value.trim();
+  const finishDateVal = document.getElementById('modalTripFinishDate').value.trim();
+  if (!startDateVal || !/^\d{2}\.\d{2}\.\d{4}$/.test(startDateVal)) {
+    showToast('⚠️ Укажите дату старта в формате ДД.ММ.ГГГГ');
+    document.getElementById('modalTripStartDate')?.focus();
+    return;
+  }
+  if (!finishDateVal || !/^\d{2}\.\d{2}\.\d{4}$/.test(finishDateVal)) {
+    showToast('⚠️ Укажите дату финиша в формате ДД.ММ.ГГГГ');
+    document.getElementById('modalTripFinishDate')?.focus();
+    return;
+  }
 
   if (clientName) {
     const existing = await db.clients.where('name').equalsIgnoreCase(clientName).first();
@@ -741,11 +766,11 @@ export async function handleCreateTripModal(event) {
 
   try {
     await createPbTrip(newTripObj);
-    showToast("✅ Поездка создана на сервере!");
+    showToast("✅ Поездка создана!");
   } catch (err) {
     console.error("Save trip modal error:", err);
     await db.trips.add(newTripObj);
-    showToast("⚠️ Сохранено локально: " + err.message);
+    showToast("⚠️ Сервер недоступен, сохранено локально: " + err.message);
   }
   closeCreateTripModal();
   if (window.loadData) await window.loadData();
