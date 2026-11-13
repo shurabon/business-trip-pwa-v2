@@ -10,15 +10,48 @@
  * ====================================================================
  */
 
-import { db, getAggregatedSummary, formatDateToRu, getTodayRuDate, getFuelSettings } from '../db.js';
+import { db, getAggregatedSummary, formatDateToRu, getTodayRuDate, getFuelSettings, parseRuDate } from '../db.js';
 import { createPbTrip, updatePbTrip, deletePbTrip } from '../pocketbaseSync.js';
 import { showToast, scheduleAutoSync, toId, isPdfFile, openPdfAttachment, currentHighlightedElementId } from './ui-utils.js';
 
 export let activeTripId = null;
 export let activeChildEdit = null;
 
+// Состояние пагинации и сортировки реестра командировок
+export let summaryCurrentPage = 1;
+export const summaryPageSize = 5;
+export let summarySortBy = 'dateDesc';
+export let summaryBalanceFilter = 'all';
+
 export function setActiveTripId(val) { activeTripId = val; }
 export function setActiveChildEdit(val) { activeChildEdit = val; }
+
+export function setSummarySort(val) {
+  summarySortBy = val;
+  summaryCurrentPage = 1;
+  renderFilteredSummaryList();
+}
+
+export function setSummaryBalanceFilter(val) {
+  summaryBalanceFilter = val;
+  summaryCurrentPage = 1;
+  renderFilteredSummaryList();
+}
+
+export function changeSummaryPage(page) {
+  summaryCurrentPage = page;
+  renderFilteredSummaryList();
+  const listEl = document.getElementById('summaryList');
+  if (listEl) {
+    listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function getTripTimestamp(t) {
+  if (!t) return 0;
+  const d = parseRuDate(t.startDate) || new Date(t.startDate);
+  return (d && !isNaN(d.getTime())) ? d.getTime() : 0;
+}
 
 /**
  * Проверка, относится ли выбранный транспорт к автомобильному
@@ -368,6 +401,7 @@ export function renderHeroBalanceWidget(aggregated) {
  * Фильтрация по чипам в списке поездок
  */
 export function setSummaryChipFilter(val, btn) {
+  summaryCurrentPage = 1;
   const input = document.getElementById('summaryStatusFilter');
   if (input) input.value = val;
   document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
@@ -388,10 +422,12 @@ export async function renderFilteredSummaryList(aggregatedData) {
   const searchQuery = isAutofillGarbage ? '' : rawSearch.toLowerCase();
   const aggregated = aggregatedData || await getAggregatedSummary();
   const container = document.getElementById('summaryList');
+  const pagContainer = document.getElementById('summaryPagination');
   if (!container) return;
 
   if (aggregated.tripSummaries.length === 0) {
-    container.innerHTML = '<p style="color: #666; font-size: 14px;">Нет данных по командировкам.</p>';
+    container.innerHTML = '<p style="color: #666; font-size: 14px; text-align:center; padding:20px 0;">Нет данных по командировкам.</p>';
+    if (pagContainer) pagContainer.innerHTML = '';
     return;
   }
 
@@ -412,6 +448,15 @@ export async function renderFilteredSummaryList(aggregatedData) {
       const st = String(s.effectiveStatus || s.trip.status || 'не подготовлен').trim().toLowerCase();
       return st === targetStatus;
     });
+  }
+
+  // Фильтр по балансу (долг вам / переплата / в нуле)
+  if (summaryBalanceFilter === 'debt') {
+    filtered = filtered.filter(s => s.balance < 0);
+  } else if (summaryBalanceFilter === 'overpaid') {
+    filtered = filtered.filter(s => s.balance > 0);
+  } else if (summaryBalanceFilter === 'settled') {
+    filtered = filtered.filter(s => s.balance === 0);
   }
 
   const allExpenses = await db.expenses.toArray();
@@ -458,13 +503,36 @@ export async function renderFilteredSummaryList(aggregatedData) {
     });
   }
 
+  // Сортировка командировок
+  if (summarySortBy === 'dateDesc') {
+    filtered.sort((a, b) => getTripTimestamp(b.trip) - getTripTimestamp(a.trip));
+  } else if (summarySortBy === 'dateAsc') {
+    filtered.sort((a, b) => getTripTimestamp(a.trip) - getTripTimestamp(b.trip));
+  } else if (summarySortBy === 'debtDesc') {
+    filtered.sort((a, b) => (a.balance - b.balance));
+  } else if (summarySortBy === 'amountDesc') {
+    filtered.sort((a, b) => ((b.totalOwed || 0) - (a.totalOwed || 0)));
+  } else if (summarySortBy === 'clientAsc') {
+    filtered.sort((a, b) => String(a.trip.client || '').localeCompare(String(b.trip.client || ''), 'ru'));
+  }
+
   if (filtered.length === 0) {
-    container.innerHTML = '<p style="color: #666; font-size: 14px;">По данному фильтру нет записей.</p>';
+    container.innerHTML = '<p style="color: #666; font-size: 14px; text-align:center; padding:20px 0;">По данному фильтру нет записей.</p>';
+    if (pagContainer) pagContainer.innerHTML = '';
     return;
   }
 
+  // Пагинация: ровно по 5 штук на страницу
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / summaryPageSize));
+  if (summaryCurrentPage > totalPages) summaryCurrentPage = totalPages;
+  if (summaryCurrentPage < 1) summaryCurrentPage = 1;
+
+  const startIndex = (summaryCurrentPage - 1) * summaryPageSize;
+  const pageItems = filtered.slice(startIndex, startIndex + summaryPageSize);
+
   let html = '';
-  filtered.forEach(s => {
+  pageItems.forEach(s => {
     const t = s.trip;
     let badgeClass = "badge-success";
     let statusText = "Расчет закрыт (0 руб.)";
@@ -615,6 +683,41 @@ export async function renderFilteredSummaryList(aggregatedData) {
   });
 
   container.innerHTML = html;
+
+  // Отрисовка пагинатора (по 5 командировок на страницу)
+  if (pagContainer) {
+    if (totalPages <= 1) {
+      pagContainer.innerHTML = totalItems > 0 ? `<div style="font-size:12px; color:#64748B; text-align:center;">Всего командировок: <strong>${totalItems}</strong></div>` : '';
+    } else {
+      let pagesHtml = '';
+      const prevDisabled = summaryCurrentPage === 1 ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : '';
+      pagesHtml += `<button type="button" class="btn btn-sm btn-secondary" style="padding:6px 12px; font-size:12px;" ${prevDisabled} onclick="changeSummaryPage(${summaryCurrentPage - 1})">‹ Назад</button>`;
+
+      for (let p = 1; p <= totalPages; p++) {
+        if (p === 1 || p === totalPages || (p >= summaryCurrentPage - 1 && p <= summaryCurrentPage + 1)) {
+          const isActive = (p === summaryCurrentPage);
+          pagesHtml += `<button type="button" class="btn btn-sm ${isActive ? '' : 'btn-secondary'}" style="padding:6px 12px; font-size:12px; min-width:34px; font-weight:${isActive ? '700' : '500'};" onclick="changeSummaryPage(${p})">${p}</button>`;
+        } else if (p === summaryCurrentPage - 2 || p === summaryCurrentPage + 2) {
+          pagesHtml += `<span style="color:#94A3B8; font-size:12px; padding:0 2px;">…</span>`;
+        }
+      }
+
+      const nextDisabled = summaryCurrentPage === totalPages ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : '';
+      pagesHtml += `<button type="button" class="btn btn-sm btn-secondary" style="padding:6px 12px; font-size:12px;" ${nextDisabled} onclick="changeSummaryPage(${summaryCurrentPage + 1})">Вперёд ›</button>`;
+
+      pagContainer.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px; width:100%;">
+          <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center;">
+            ${pagesHtml}
+          </div>
+          <div style="font-size:12px; color:#64748B;">
+            Показаны <strong>${startIndex + 1}–${Math.min(startIndex + summaryPageSize, totalItems)}</strong> из <strong>${totalItems}</strong> командировок
+          </div>
+        </div>
+      `;
+    }
+  }
+
   if (activeTripId && document.getElementById(`card-edit-${activeTripId}`)) {
     await transformCardToEdit(activeTripId);
   }
@@ -1161,6 +1264,7 @@ export async function goToStatusFilter(statusName) {
     return;
   }
 
+  summaryCurrentPage = 1;
   if (window.switchTab) window.switchTab('summaryTab');
   const filterInput = document.getElementById('summaryStatusFilter');
   if (filterInput) {
@@ -1191,8 +1295,18 @@ export async function goToTripCard(tripId) {
   const filterInput = document.getElementById('summaryStatusFilter');
   if (filterInput) filterInput.value = 'all';
   document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
+  const allChip = document.querySelector('.filter-chip[onclick*="\'all\'"]');
+  if (allChip) allChip.classList.add('active');
 
-  await renderFilteredSummaryList();
+  // Вычисляем, на какой странице находится поездка
+  const aggregated = await getAggregatedSummary();
+  const trips = aggregated.tripSummaries;
+  const idx = trips.findIndex(s => String(s.trip.id) === String(tripId));
+  if (idx !== -1) {
+    summaryCurrentPage = Math.floor(idx / summaryPageSize) + 1;
+  }
+
+  await renderFilteredSummaryList(aggregated);
 
   requestAnimationFrame(() => {
     const card = document.getElementById(`card-container-${tripId}`);

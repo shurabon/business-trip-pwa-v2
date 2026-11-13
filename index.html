@@ -254,9 +254,36 @@
         <button type="button" class="filter-chip" onclick="setSummaryChipFilter('all', this)">🌐 Все</button>
       </div>
 
+      <!-- ПАНЕЛЬ СОРТИРОВКИ И ДОПОЛНИТЕЛЬНЫХ ФИЛЬТРОВ -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; background:#F8FAFC; padding:8px 12px; border-radius:12px; border:1px solid #E2E8F0;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-outlined" style="font-size:18px; color:var(--md-sys-color-primary);">sort</span>
+          <select id="summarySortSelect" class="form-control" style="width:auto; font-size:12.5px; padding:4px 8px; font-weight:500;" onchange="setSummarySort(this.value)">
+            <option value="dateDesc" selected>📅 Сначала новые</option>
+            <option value="dateAsc">📅 Сначала старые</option>
+            <option value="debtDesc">💰 Сначала с долгом</option>
+            <option value="amountDesc">📊 По сумме расходов (макс.)</option>
+            <option value="clientAsc">🏢 По клиенту (А–Я)</option>
+          </select>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-outlined" style="font-size:18px; color:#2E7D32;">filter_alt</span>
+          <select id="summaryBalanceTypeFilter" class="form-control" style="width:auto; font-size:12.5px; padding:4px 8px; font-weight:500;" onchange="setSummaryBalanceFilter(this.value)">
+            <option value="all" selected>Все балансы</option>
+            <option value="debt">Только долг вам</option>
+            <option value="overpaid">Только переплаты</option>
+            <option value="settled">Закрытые в 0</option>
+          </select>
+        </div>
+      </div>
+
       <input type="hidden" id="summaryStatusFilter" value="inProgress">
 
       <div id="summaryList">Загрузка...</div>
+
+      <!-- ПАГИНАЦИЯ (ПОСТРАНИЧНЫЙ ВЫВОД ПО 5 ШТУК) -->
+      <div id="summaryPagination" style="display:flex; justify-content:center; align-items:center; margin-top:16px; margin-bottom:24px;"></div>
     </div>
 
     <!-- TAB 5: REPORTS & EXPORT -->

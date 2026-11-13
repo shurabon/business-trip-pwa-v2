@@ -53,7 +53,10 @@ import {
   goToStatusFilter,
   goToTripCard,
   refreshTripSelects,
-  closeActiveChildForm
+  closeActiveChildForm,
+  changeSummaryPage,
+  setSummarySort,
+  setSummaryBalanceFilter
 } from './modules/ui-trips.js';
 
 // 4. Модуль расходов и чеков
@@ -351,6 +354,9 @@ export function exportHandlersToWindow() {
   window.toggleCardDetails = toggleCardDetails;
   window.deleteTrip = deleteTrip;
   window.refreshTripSelects = refreshTripSelects;
+  window.changeSummaryPage = changeSummaryPage;
+  window.setSummarySort = setSummarySort;
+  window.setSummaryBalanceFilter = setSummaryBalanceFilter;
 
   // Расходы и чеки
   window.previewFile = previewFile;
