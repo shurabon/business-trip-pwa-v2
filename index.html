@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-Cz6AKnz8.js"></script>
+  <script type="module" crossorigin src="./assets/index-CV7Jv8nC.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-CAm7wo_R.css">
 </head>
 <body>
@@ -585,7 +585,7 @@
         <div class="form-row">
           <div class="form-group">
             <label>№ Заявки сервиса</label>
-            <input type="text" id="modalTripServiceApp" class="form-control" placeholder="Например: 03-347" required>
+            <input type="text" id="modalTripServiceApp" class="form-control" placeholder="Например: 03-347">
           </div>
           <div class="form-group">
             <label>Клиент</label>
@@ -666,7 +666,7 @@
           <input type="text" id="modalTripNote" class="form-control" placeholder="Дополнительная информация">
         </div>
 
-        <button type="submit" class="btn" style="padding:14px; margin-top:10px;">
+        <button type="button" class="btn" style="padding:14px; margin-top:10px;" onclick="handleCreateTripModal(event)">
           <span class="material-symbols-outlined">save</span> Создать поездку
         </button>
       </form>
