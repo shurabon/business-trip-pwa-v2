@@ -182,33 +182,20 @@ def parse_yandex_go_email(msg_id, msg, raw_email_date, folder_name=""):
     full_text = (text_body + "\n" + plain_from_html).replace('\xa0', ' ').replace('\u202f', ' ')
 
     # ====================================================================
-    # 1. СУММА (PRICE) - Двуязычный поиск (₽ впереди и ₽ сзади)
+    # 1. СУММА (PRICE) - Двуязычный надежный поиск
     # ====================================================================
     amount = 0.0
 
-    # Шаг 1.1: Поиск по ключевым словам Total price / Ride price / Итого / Стоимость
-    # Поддерживает знак рубля как перед числом (₽717.36), так и после (717.36 ₽)
-    m = re.search(
-        r'(?:Total\s*price|Ride\s*price|Итого|Стоимость поездки|Стоимость|Всего|Сумма|ИТОГ[О]?|К оплате)'
-        r'[^\d\r\n]{0,35}'
-        r'(\d+(?:[\s\xa0\u202f]*\d+)*(?:[.,]\d{1,2})?)',
-        full_text,
-        re.IGNORECASE
-    )
-    if m:
-        raw_amt = m.group(1).replace(' ', '').replace(',', '.')
-        try:
-            val = round(float(raw_amt), 2)
-            if val > 0:
-                amount = val
-        except ValueError:
-            pass
-
-    # Шаг 1.2: Если не нашли по ключевому слову, ищем знак рубля перед числом (₽717.36)
-    if amount == 0.0:
-        m2 = re.search(r'[₽$€]\s*(\d+(?:[\s\xa0\u202f]*\d+)*(?:[.,]\d{1,2})?)', full_text)
-        if m2:
-            raw_amt = m2.group(1).replace(' ', '').replace(',', '.')
+    # Шаг 1.0: Прямой поиск в HTML-таблице отчёта Яндекс Go ("Общая стоимость")
+    if html_body:
+        html_clean = html_body.replace('\xa0', ' ').replace('\u202f', ' ')
+        m_html = re.search(
+            r'<td[^>]*>\s*(?:Общая\s*стоимость|Total\s*price|Ride\s*price)\s*</td>\s*<td[^>]*>(?:<[^>]+>)*\s*(\d+(?:[\s]*\d+)*(?:[.,]\d{1,2})?)\s*(?:[₽$€]|руб)?',
+            html_clean,
+            re.IGNORECASE
+        )
+        if m_html:
+            raw_amt = m_html.group(1).replace(' ', '').replace(',', '.')
             try:
                 val = round(float(raw_amt), 2)
                 if val > 0:
@@ -216,26 +203,44 @@ def parse_yandex_go_email(msg_id, msg, raw_email_date, folder_name=""):
             except ValueError:
                 pass
 
-    # Шаг 1.3: Поиск знака рубля после числа (717.36 ₽ / 717 руб)
+    # Шаг 1.1: Явный поиск строки стоимости по ключевым фразам со знаком валюты или без
+    # Важно: исключаем "Всего" (так как это "Всего в пути: 22 мин" или "Всего 22 км")
+    # и исключаем блок "НДС", "Ставка 22.0%"
     if amount == 0.0:
-        m3 = re.search(r'(\d+(?:[\s\xa0\u202f]*\d+)*(?:[.,]\d{1,2})?)\s*(?:[₽$€]|руб\.?)', full_text, re.IGNORECASE)
-        if m3:
-            raw_amt = m3.group(1).replace(' ', '').replace(',', '.')
-            try:
-                val = round(float(raw_amt), 2)
-                if val > 0:
-                    amount = val
-            except ValueError:
-                pass
+        price_patterns = [
+            # Общая стоимость / Стоимость поездки / Total price / К оплате
+            r'(?:Общая\s*стоимость|Стоимость\s*поездки|Total\s*price|Ride\s*price|К\s*оплате|Стоимость|Итого\s*к\s*оплате|Итого|ИТОГ[О]?)\s*[:—\-=]?\s*(?:[₽$€]\s*)?(\d+(?:[\s\xa0\u202f]\d+)*(?:[.,]\d{1,2})?)\s*(?:[₽$€]|руб\.?|р\b|RUB)?',
+            # Знак валюты перед числом: ₽ 717.36 / ₽717
+            r'[₽$€]\s*(\d+(?:[\s\xa0\u202f]\d+)*(?:[.,]\d{1,2})?)',
+            # Число перед знаком валюты: 717.36 ₽ / 717 руб / 717.36 руб.
+            r'(?<!\d)(\d+(?:[\s\xa0\u202f]\d+)*(?:[.,]\d{1,2})?)\s*(?:[₽$€]|руб\.?|р\b)',
+            # Фискальный ОФД формат: ИТОГ: =717.36
+            r'ИТОГ[О]?\s*[:=]\s*=?\s*(\d+(?:[.,]\d{1,2})?)'
+        ]
 
-    # Шаг 1.4: Поиск по фискальному формату ОФД (ИТОГ: =717.36)
-    if amount == 0.0:
-        m4 = re.search(r'ИТОГ[О]?\s*[:=]\s*=?\s*(\d+(?:[.,]\d{1,2})?)', full_text, re.IGNORECASE)
-        if m4:
-            try:
-                amount = round(float(m4.group(1).replace(',', '.')), 2)
-            except ValueError:
-                pass
+        for pat in price_patterns:
+            for m in re.finditer(pat, full_text, re.IGNORECASE):
+                raw_amt = m.group(1).replace(' ', '').replace('\xa0', '').replace('\u202f', '').replace(',', '.')
+                try:
+                    val = round(float(raw_amt), 2)
+                    start_pos, end_pos = m.span()
+                    after_text = full_text[end_pos:end_pos + 15].lower()
+                    before_text = full_text[max(0, start_pos - 15):start_pos].lower()
+
+                    # Игнорируем совпадения с минутами, километрами, часами, процентами
+                    if any(unit in after_text for unit in ['мин', 'min', 'км', 'km', 'час', 'h', '%']):
+                        continue
+                    # Игнорируем строки НДС и ставок
+                    if any(bad in before_text for bad in ['ндс', 'ставка', 'налог', 'скидк', 'всего в пути']):
+                        continue
+
+                    if val > 0:
+                        amount = val
+                        break
+                except ValueError:
+                    pass
+            if amount > 0:
+                break
 
     # ====================================================================
     # 2. СПОСОБ ОПЛАТЫ (PAYMENT METHOD)
@@ -482,9 +487,16 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
                     continue
 
                 is_yandex_taxi = False
-                if any(s in sender for s in ['taxi.yandex', 'go.yandex', 'taximeter', 'yandex']):
+                # 1. Прямые служебные адреса Яндекс Такси / Go
+                if any(s in sender for s in ['taxi.yandex', 'go.yandex', 'taximeter']):
                     is_yandex_taxi = True
-                elif any(kw in subject for kw in ['яндекс go', 'яндекс.такси', 'яндекс такси', 'yandex.taxi', 'yandex go', 'taxi', 'такси', 'поездка', 'ride', 'чек']):
+                # 2. Сервер рассылки чеков Яндекса или общий яндекс-домен — ТОЛЬКО если тема относится к поездке/такси
+                elif 'supersender.yandex.net' in sender or 'yandex' in sender:
+                    taxi_keywords = ['яндекс go', 'яндекс.такси', 'яндекс такси', 'yandex.taxi', 'yandex go', 'такси', 'поездка', 'ride', 'отчёт о поездке', 'электронный чек по поездке']
+                    if any(kw in subject for kw in taxi_keywords):
+                        is_yandex_taxi = True
+                # 3. Сторонние адреса (например, ОФД), только если в теме явно "такси" или "яндекс go"
+                elif any(kw in subject for kw in ['яндекс go', 'яндекс.такси', 'яндекс такси', 'yandex.taxi', 'yandex go', 'такси яндекс']):
                     is_yandex_taxi = True
 
                 if not is_yandex_taxi:
@@ -500,6 +512,12 @@ def scan_mail(email_user, password, imap_server="imap.mail.ru", imap_port=993, d
 
                 full_msg = email.message_from_bytes(full_data[0][1])
                 parsed = parse_yandex_go_email(msg_id.decode('utf-8', errors='ignore'), full_msg, raw_date, dec_folder)
+                if not parsed:
+                    continue
+
+                # Игнорируем письма без маршрута и с нулевой суммой (это не поездки)
+                if not parsed.get('from') and not parsed.get('to') and parsed.get('amount', 0) <= 0:
+                    continue
 
                 sig = f"{parsed['date']}_{parsed['time']}_{parsed['amount']}_{parsed['route']}"
                 if sig in seen_ride_signatures:
