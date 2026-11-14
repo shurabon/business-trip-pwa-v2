@@ -1102,6 +1102,26 @@ export async function transformCardToEdit(tripId) {
           <input type="text" id="inlineNote-${t.id}" class="form-control" value="${t.note || ''}">
         </div>
 
+        <!-- БЛОК ГЕНЕРАЦИИ ДОКУМЕНТОВ В EXCEL ПО ШАБЛОНАМ -->
+        <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:12px; margin-top:14px;">
+          <div style="display:flex; align-items:center; gap:6px; color:#166534; font-weight:600; font-size:13px; margin-bottom:8px;">
+            <span class="material-symbols-outlined" style="font-size:18px;">description</span> 📄 Сформировать документ (Excel)
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <button type="button" class="btn btn-sm" style="background:#16A34A; color:#fff; justify-content:center; padding:8px 12px; font-size:12px;" onclick="renderAndDownloadDocument('avans_otchet.xlsx', '${t.id}')">
+              📊 Скачать Авансовый отчет (АО-1 .xlsx)
+            </button>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="btn btn-sm btn-secondary" style="flex:1; justify-content:center; padding:6px 8px; font-size:11px;" onclick="renderAndDownloadDocument('sluzhebnaya_zapiska.xlsx', '${t.id}')">
+                📝 Сл. записка (.xlsx)
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary" style="flex:1; justify-content:center; padding:6px 8px; font-size:11px;" onclick="renderAndDownloadDocument('putevoy_list.xlsx', '${t.id}')">
+                🚗 Путевой лист (.xlsx)
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div style="display:flex; gap:10px; margin-top:14px;">
           <button type="submit" class="btn" style="flex:1;">
             Сохранить

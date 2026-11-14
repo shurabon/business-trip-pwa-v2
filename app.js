@@ -133,6 +133,14 @@ import {
   downloadPDFReport
 } from './modules/ui-reports.js';
 
+// 7.1. Сервис шаблонов Carbone Engine
+import {
+  renderAndDownloadDocument,
+  downloadTemplateOriginal,
+  uploadCarboneTemplate,
+  renderTemplatesManagementList
+} from './modules/carboneService.js';
+
 // 8. Модуль сканирования почты и чеков Яндекс Go
 import {
   loadMailruSettings,
@@ -278,6 +286,7 @@ export async function loadData() {
   renderHeroBalanceWidget(aggregated);
   renderFilteredSummaryList(aggregated);
   renderDictionariesManager(dicts);
+  renderTemplatesManagementList();
   await refreshTripSelects();
   await renderExpensesList();
   await renderPaymentsList();
@@ -416,6 +425,19 @@ export function exportHandlersToWindow() {
   window.generateSelectedReport = generateSelectedReport;
   window.downloadExcelReport = downloadExcelReport;
   window.downloadPDFReport = downloadPDFReport;
+
+  // Carbone шаблоны документов
+  window.renderAndDownloadDocument = renderAndDownloadDocument;
+  window.downloadTemplateOriginal = downloadTemplateOriginal;
+  window.uploadCarboneTemplate = uploadCarboneTemplate;
+  window.renderTemplatesManagementList = renderTemplatesManagementList;
+  window.handleTemplateFileUpload = (event) => {
+    const file = event.target?.files?.[0];
+    if (file) {
+      uploadCarboneTemplate(file);
+      event.target.value = '';
+    }
+  };
 
   // Сканирование почты и поездки Яндекс Go
   window.loadMailruSettings = loadMailruSettings;

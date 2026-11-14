@@ -1,0 +1,11 @@
+services:
+  carbone:
+    build: .
+    container_name: carbone
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./templates:/app/templates
+    environment:
+      - PORT=4000

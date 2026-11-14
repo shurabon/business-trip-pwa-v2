@@ -306,11 +306,18 @@
         <div class="form-group" style="margin-bottom: 20px;">
           <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">Выберите тип отчета:</label>
           <select id="reportTypeSelect" class="form-control" style="font-weight: 500;">
-            <option value="ao1">📊 Авансовый отчет Excel (Форма АО-1)</option>
-            <option value="waybillDocx">🚗 Путевой лист легкового автомобиля (Word .docx)</option>
-            <option value="reimbursementDocx">📝 Заявление на возмещение ДС (Word .docx)</option>
-            <option value="pdf">📄 PDF с фото всех чеков</option>
-            <option value="allExcel">🌐 Полная сводная ведомость всех поездок (Excel)</option>
+            <optgroup label="Шаблоны Carbone (настраиваемые .xlsx)">
+              <option value="carboneAo1" selected>📊 Авансовый отчет (Форма АО-1, шаблон Excel)</option>
+              <option value="carboneMemo">📝 Служебная записка (шаблон Excel)</option>
+              <option value="carboneWaybill">🚗 Путевой лист легкового авто (шаблон Excel)</option>
+            </optgroup>
+            <optgroup label="Встроенные генераторы">
+              <option value="ao1">📊 Классический АО-1 Excel</option>
+              <option value="waybillDocx">🚗 Путевой лист (Word .docx)</option>
+              <option value="reimbursementDocx">📝 Заявление на возмещение ДС (Word .docx)</option>
+              <option value="pdf">📄 PDF с фото всех чеков</option>
+              <option value="allExcel">🌐 Полная сводная ведомость всех поездок (Excel)</option>
+            </optgroup>
           </select>
         </div>
 
@@ -539,6 +546,32 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- КАРТОЧКА: УПРАВЛЕНИЕ ШАБЛОНАМИ ДОКУМЕНТОВ (CARBONE) -->
+      <div class="card" style="border: 1px solid #BAE6FD; background: #F0F9FF;">
+        <div class="card-title" style="color: #0369A1;">
+          <span class="material-symbols-outlined" style="color: #0284C7;">difference</span> Шаблоны документов (Carbone Engine)
+        </div>
+        <p style="font-size: 13px; color: #0C4A6E; margin-bottom: 14px;">
+          Скачивайте оригинальные файлы шаблонов (Excel), настраивайте их под свои стандарты на ПК и загружайте обратно.
+        </p>
+
+        <!-- Список файлов шаблонов -->
+        <div id="carboneTemplatesList" style="margin-bottom: 16px;">
+          <div style="font-size:12px; color:#64748B;">Загрузка списка шаблонов...</div>
+        </div>
+
+        <!-- Кнопка загрузки своего шаблона -->
+        <div style="background:#FFFFFF; border:1px dashed #0284C7; border-radius:10px; padding:12px; text-align:center;">
+          <label style="font-size:13px; font-weight:600; color:#0369A1; display:block; margin-bottom:6px;">
+            📤 Загрузить обновленный шаблон (.xlsx / .docx)
+          </label>
+          <input type="file" id="carboneTemplateFileInput" accept=".xlsx,.docx" style="display:none;" onchange="handleTemplateFileUpload(event)">
+          <button type="button" class="btn btn-sm" style="background:#0284C7; padding:8px 16px;" onclick="document.getElementById('carboneTemplateFileInput').click()">
+            <span class="material-symbols-outlined" style="font-size:18px;">cloud_upload</span> Выбрать файл с ПК / телефона
+          </button>
+        </div>
       </div>
     </div>
 

@@ -11,6 +11,7 @@
  */
 
 import { exportToExcel, exportToPDF, exportAO1Excel, exportReimbursementDocx, exportWaybillDocx } from '../reports.js';
+import { renderAndDownloadDocument } from './carboneService.js';
 import { showToast } from './ui-utils.js';
 
 /**
@@ -33,7 +34,13 @@ export async function generateSelectedReport() {
       return;
     }
 
-    if (type === 'ao1') {
+    if (type === 'carboneAo1') {
+      await renderAndDownloadDocument('avans_otchet.xlsx', tripId);
+    } else if (type === 'carboneMemo') {
+      await renderAndDownloadDocument('sluzhebnaya_zapiska.xlsx', tripId);
+    } else if (type === 'carboneWaybill') {
+      await renderAndDownloadDocument('putevoy_list.xlsx', tripId);
+    } else if (type === 'ao1') {
       await exportAO1Excel(tripId);
       showToast("📊 Авансовый отчет АО-1 (Excel) сформирован!");
     } else if (type === 'waybillDocx') {
