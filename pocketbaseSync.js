@@ -5,34 +5,96 @@ export const PB_URL = (typeof window !== 'undefined' && window.location && windo
   ? window.location.origin
   : 'https://app.danilovhome.keenetic.pro';
 
+// Хелпер для сетевых запросов с таймаутом (по умолчанию 4 сек)
+export async function fetchWithTimeout(resource, options = {}, timeout = 4000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') {
+      throw new Error('Таймаут соединения с сервером');
+    }
+    throw error;
+  }
+}
+
 export function getServerTimeOffsetMs() { return 0; }
 export async function fetchServerTimeOffset() { return 0; }
 
 // 1. Быстрая синхронизация всех данных из PocketBase в локальный Dexie кэш
 export async function syncWithPocketBase() {
   try {
+    // 0. Если есть созданные офлайн локальные поездки, сначала отправляем их в PocketBase
+    try {
+      const localTrips = await db.trips.filter(t => String(t.id).startsWith('local_')).toArray();
+      for (const lt of localTrips) {
+        const payload = {
+          orderNumber: lt.appNo || '',
+          client: lt.client || '',
+          location: lt.location || '',
+          workType: lt.workType || '',
+          transport: lt.transport || 'Нет',
+          isBusinessTrip: true,
+          startDate: lt.startDate || '',
+          finishDate: lt.finishDate || '',
+          perDiemRate: parseFloat(lt.perDiemRate) || 0,
+          odoStart: parseFloat(lt.odoStart) || 0,
+          odoFinish: parseFloat(lt.odoFinish) || 0,
+          status: lt.status || 'Подготовлен',
+          note: lt.note || ''
+        };
+        const res = await fetchWithTimeout(`${PB_URL}/api/collections/trips/records`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }, 4000);
+        if (res.ok) {
+          const rec = await res.json();
+          // Перепривязываем локальные расходы и выплаты, если они ссылались на старый local_ id
+          const linkedExp = await db.expenses.where('tripId').equals(String(lt.id)).toArray();
+          for (const le of linkedExp) {
+            await db.expenses.update(le.id, { tripId: String(rec.id) });
+          }
+          const linkedPay = await db.payments.where('tripId').equals(String(lt.id)).toArray();
+          for (const lp of linkedPay) {
+            await db.payments.update(lp.id, { tripId: String(rec.id) });
+          }
+          await db.trips.delete(lt.id);
+        }
+      }
+    } catch (pushErr) {
+      console.warn('Failed to push offline local trips to PB:', pushErr);
+    }
+
     const [tripsRes, expensesRes, paymentsRes, clientsRes, settingsRes, taxiRidesRes] = await Promise.all([
-      fetch(`${PB_URL}/api/collections/trips/records?filter=(deleted!=true)&perPage=500`).then(r => {
+      fetchWithTimeout(`${PB_URL}/api/collections/trips/records?filter=(deleted!=true)&perPage=500`, {}, 4000).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
-      fetch(`${PB_URL}/api/collections/expenses/records?filter=(deleted!=true)&perPage=500`).then(r => {
+      fetchWithTimeout(`${PB_URL}/api/collections/expenses/records?filter=(deleted!=true)&perPage=500`, {}, 4000).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
-      fetch(`${PB_URL}/api/collections/payments/records?filter=(deleted!=true)&perPage=500`).then(r => {
+      fetchWithTimeout(`${PB_URL}/api/collections/payments/records?filter=(deleted!=true)&perPage=500`, {}, 4000).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
-      fetch(`${PB_URL}/api/collections/clients/records?perPage=500`).then(r => {
+      fetchWithTimeout(`${PB_URL}/api/collections/clients/records?perPage=500`, {}, 4000).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
-      fetch(`${PB_URL}/api/collections/settings/records?perPage=1`).then(r => {
+      fetchWithTimeout(`${PB_URL}/api/collections/settings/records?perPage=1`, {}, 4000).then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
-      fetch(`${PB_URL}/api/collections/taxi_rides/records?filter=(deleted!=true)&perPage=500`).then(r => {
+      fetchWithTimeout(`${PB_URL}/api/collections/taxi_rides/records?filter=(deleted!=true)&perPage=500`, {}, 4000).then(r => {
         if (!r.ok) return { items: [] };
         return r.json();
       }).catch(() => ({ items: [] }))
@@ -177,11 +239,11 @@ export async function createPbTrip(data) {
     status: data.status || 'Подготовлен',
     note: data.note || ''
   };
-  const res = await fetch(`${PB_URL}/api/collections/trips/records`, {
+  const res = await fetchWithTimeout(`${PB_URL}/api/collections/trips/records`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  });
+  }, 4000);
   if (!res.ok) throw new Error(await res.text());
   const rec = await res.json();
   const trip = {
@@ -221,11 +283,11 @@ export async function updatePbTrip(id, data) {
   if (data.status !== undefined) payload.status = data.status;
   if (data.note !== undefined) payload.note = data.note;
 
-  const res = await fetch(`${PB_URL}/api/collections/trips/records/${id}`, {
+  const res = await fetchWithTimeout(`${PB_URL}/api/collections/trips/records/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  });
+  }, 4000);
   if (!res.ok) throw new Error(await res.text());
   const rec = await res.json();
   await db.trips.update(id, data);
@@ -234,11 +296,11 @@ export async function updatePbTrip(id, data) {
 
 // 4. Пометка поездки на удаление (Soft Delete)
 export async function deletePbTrip(id) {
-  const res = await fetch(`${PB_URL}/api/collections/trips/records/${id}`, {
+  const res = await fetchWithTimeout(`${PB_URL}/api/collections/trips/records/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ deleted: true })
-  });
+  }, 4000);
   if (!res.ok && res.status !== 404) throw new Error(await res.text());
   await db.trips.delete(id);
   // Каскадная пометка на удаление расходов и выплат
@@ -274,10 +336,10 @@ export async function createPbExpense(data, fileBlob, fileName) {
     if (data.taxiRideId) formData.append('taxiRideId', data.taxiRideId);
     formData.append('receipt', fileBlob, fileName || 'receipt.jpg');
 
-    const res = await fetch(`${PB_URL}/api/collections/expenses/records`, {
+    const res = await fetchWithTimeout(`${PB_URL}/api/collections/expenses/records`, {
       method: 'POST',
       body: formData
-    });
+    }, 15000);
     if (!res.ok) throw new Error(await res.text());
     rec = await res.json();
   } else {
@@ -295,11 +357,11 @@ export async function createPbExpense(data, fileBlob, fileName) {
       rideTime: data.rideTime || '',
       taxiRideId: data.taxiRideId || ''
     };
-    const res = await fetch(`${PB_URL}/api/collections/expenses/records`, {
+    const res = await fetchWithTimeout(`${PB_URL}/api/collections/expenses/records`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    });
+    }, 4000);
     if (!res.ok) throw new Error(await res.text());
     rec = await res.json();
   }
@@ -400,11 +462,11 @@ export async function createPbPayment(data) {
     amount: parseFloat(data.amount) || 0,
     note: data.note || ''
   };
-  const res = await fetch(`${PB_URL}/api/collections/payments/records`, {
+  const res = await fetchWithTimeout(`${PB_URL}/api/collections/payments/records`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  });
+  }, 4000);
   if (!res.ok) throw new Error(await res.text());
   const rec = await res.json();
   const payItem = {

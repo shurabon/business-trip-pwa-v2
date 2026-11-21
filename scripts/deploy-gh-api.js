@@ -1,35 +1,68 @@
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
 
 const OWNER = 'shurabon';
 const REPO = 'business-trip-pwa-v2';
 
-async function ghRequest(endpoint, method = 'GET', token, body = null) {
-  const url = `https://api.github.com/repos/${OWNER}/${REPO}${endpoint}`;
-  const res = await fetch(url, {
+function httpsRequest(options, postData = null) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => resolve({ statusCode: res.statusCode, body }));
+    });
+    req.on('error', reject);
+    req.setTimeout(30000, () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
+    if (postData) {
+      req.write(postData);
+    }
+    req.end();
+  });
+}
+
+async function ghRequest(endpoint, method = 'GET', token, body = null, retries = 3) {
+  const postData = body ? JSON.stringify(body) : null;
+  const options = {
+    hostname: 'api.github.com',
+    port: 443,
+    path: `/repos/${OWNER}/${REPO}${endpoint}`,
     method,
     headers: {
       'Authorization': `Bearer ${token}`,
       'Accept': 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'User-Agent': 'Deployer-PWA',
-      ...(body ? { 'Content-Type': 'application/json' } : {})
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
+      ...(postData ? {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      } : {})
+    }
+  };
 
-  const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : {};
-  } catch (e) {
-    json = { raw: text };
-  }
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await httpsRequest(options, postData);
+      let json;
+      try {
+        json = res.body ? JSON.parse(res.body) : {};
+      } catch (e) {
+        json = { raw: res.body };
+      }
 
-  if (!res.ok) {
-    throw new Error(`GitHub API error ${res.status}: ${json.message || text} [${method} ${endpoint}]`);
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        throw new Error(`GitHub API error ${res.statusCode}: ${json.message || res.body} [${method} ${endpoint}]`);
+      }
+      return json;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      console.warn(`   ⚠️ Попытка ${attempt} не удалась (${err.message}), повторяем через 2 сек...`);
+      await new Promise(r => setTimeout(r, 2000));
+    }
   }
-  return json;
 }
 
 async function createBlob(token, contentBuffer) {
@@ -43,10 +76,10 @@ async function createBlob(token, contentBuffer) {
 
 function getSourceFiles(dirPath, baseDir = dirPath, arrayOfFiles = []) {
   const files = fs.readdirSync(dirPath);
-  const ignored = new Set(['node_modules', 'dist', '.git', '.gemini', 'pb_data', 'pb_public', '.github']);
+  const ignored = new Set(['node_modules', 'dist', '.git', '.gemini', 'pb_data', 'pb_public', '.github', 'android-package']);
 
   for (const file of files) {
-    if (ignored.has(file) || file.endsWith('.tar.gz') || file.endsWith('.zip')) continue;
+    if (ignored.has(file) || file.endsWith('.tar.gz') || file.endsWith('.zip') || file.endsWith('.apk') || file.endsWith('.aab')) continue;
     const fullPath = path.join(dirPath, file);
     if (fs.statSync(fullPath).isDirectory()) {
       getSourceFiles(fullPath, baseDir, arrayOfFiles);

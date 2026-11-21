@@ -414,6 +414,12 @@ export function setSummaryChipFilter(val, btn) {
  * @param {object} [aggregatedData]
  */
 export async function renderFilteredSummaryList(aggregatedData) {
+  // Синхронизируем сортировку с выбранным значением в UI селекте
+  const sortSelect = document.getElementById('summarySortSelect');
+  if (sortSelect && sortSelect.value) {
+    summarySortBy = sortSelect.value;
+  }
+
   const filterVal = document.getElementById('summaryStatusFilter')?.value || 'inProgress';
   const rawSearch = (document.getElementById('summarySearchInput')?.value || '').trim();
   const token = localStorage.getItem('github_token') || '';
@@ -746,7 +752,12 @@ export async function handleCreateTrip(event) {
 
   const defaultStatus = 'не подготовлен';
 
+  const tripIdToSave = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? 'local_' + crypto.randomUUID()
+    : 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
   const newTrip = {
+    id: tripIdToSave,
     appNo: document.getElementById('tripServiceApp').value,
     client: clientName,
     location: locationVal,
@@ -766,9 +777,9 @@ export async function handleCreateTrip(event) {
     await createPbTrip(newTrip);
     showToast("✅ Поездка сохранена на сервере!");
   } catch (err) {
-    console.error("Create trip PB error:", err);
-    await db.trips.add(newTrip);
-    showToast("⚠️ Сохранено локально: " + err.message);
+    console.warn("Create trip PB offline fallback:", err);
+    await db.trips.put(newTrip);
+    showToast("⚠️ Сохранено офлайн в телефон: " + (err.message || 'нет связи'));
   }
 
   document.getElementById('tripForm').reset();
@@ -851,7 +862,12 @@ export async function handleCreateTripModal(event) {
 
   const defaultStatus = 'не подготовлен';
 
+  const modalTripIdToSave = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? 'local_' + crypto.randomUUID()
+    : 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
   const newTripObj = {
+    id: modalTripIdToSave,
     appNo: document.getElementById('modalTripServiceApp').value,
     client: clientName,
     location: locationVal,
@@ -871,9 +887,9 @@ export async function handleCreateTripModal(event) {
     await createPbTrip(newTripObj);
     showToast("✅ Поездка создана!");
   } catch (err) {
-    console.error("Save trip modal error:", err);
-    await db.trips.add(newTripObj);
-    showToast("⚠️ Сервер недоступен, сохранено локально: " + err.message);
+    console.warn("Save trip modal offline fallback:", err);
+    await db.trips.put(newTripObj);
+    showToast("⚠️ Сохранено офлайн в телефон: " + (err.message || 'нет связи'));
   }
   closeCreateTripModal();
   if (window.loadData) await window.loadData();
@@ -1312,30 +1328,55 @@ export async function goToTripCard(tripId) {
   const targetMobileNav = document.querySelector(`.mobile-nav-item[onclick*="summaryTab"]`);
   if (targetMobileNav) targetMobileNav.classList.add('active');
 
+  // Устанавливаем фильтр "Все", чтобы целевая поездка не была отфильтрована
   const filterInput = document.getElementById('summaryStatusFilter');
   if (filterInput) filterInput.value = 'all';
   document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
   const allChip = document.querySelector('.filter-chip[onclick*="\'all\'"]');
   if (allChip) allChip.classList.add('active');
 
-  // Вычисляем, на какой странице находится поездка
+  // Синхронизируем сортировку
+  const sortSelect = document.getElementById('summarySortSelect');
+  if (sortSelect && sortSelect.value) {
+    summarySortBy = sortSelect.value;
+  }
+
+  // Получаем агрегированные данные
   const aggregated = await getAggregatedSummary();
-  const trips = aggregated.tripSummaries;
-  const idx = trips.findIndex(s => String(s.trip.id) === String(tripId));
+  let filtered = aggregated.tripSummaries.slice();
+
+  // Применяем текущую сортировку к массиву, точно как в renderFilteredSummaryList
+  if (summarySortBy === 'dateDesc') {
+    filtered.sort((a, b) => getTripTimestamp(b.trip) - getTripTimestamp(a.trip));
+  } else if (summarySortBy === 'dateAsc') {
+    filtered.sort((a, b) => getTripTimestamp(a.trip) - getTripTimestamp(b.trip));
+  } else if (summarySortBy === 'debtDesc') {
+    filtered.sort((a, b) => (a.balance - b.balance));
+  } else if (summarySortBy === 'amountDesc') {
+    filtered.sort((a, b) => ((b.totalOwed || 0) - (a.totalOwed || 0)));
+  } else if (summarySortBy === 'clientAsc') {
+    filtered.sort((a, b) => String(a.trip.client || '').localeCompare(String(b.trip.client || ''), 'ru'));
+  }
+
+  // Точно определяем страницу, на которой окажется карточка в отсортированном списке
+  const idx = filtered.findIndex(s => String(s.trip.id) === String(tripId));
   if (idx !== -1) {
     summaryCurrentPage = Math.floor(idx / summaryPageSize) + 1;
   }
 
   await renderFilteredSummaryList(aggregated);
 
-  requestAnimationFrame(() => {
+  // Скроллим к карточке, подсвечиваем и сразу переводим в режим редактирования
+  setTimeout(async () => {
     const card = document.getElementById(`card-container-${tripId}`);
     if (card) {
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
       card.classList.add('trip-card-gentle-highlight');
       setTimeout(() => card.classList.remove('trip-card-gentle-highlight'), 2300);
     }
-  });
+    // Автоматически раскрываем форму редактирования этой поездки
+    await transformCardToEdit(tripId);
+  }, 100);
 }
 
 /**
