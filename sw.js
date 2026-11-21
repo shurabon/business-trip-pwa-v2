@@ -1,4 +1,4 @@
-const CACHE_NAME = 'business-trips-pb-v5';
+const CACHE_NAME = 'business-trips-pb-v6';
 
 const PRECACHE_ASSETS = [
   './',
